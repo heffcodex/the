@@ -14,6 +14,8 @@ var (
 	httpRequestMaskHeaders = map[string]struct{}{
 		"Api-Key":             {},
 		"Api-Token":           {},
+		"Auth":                {},
+		"Auth-Token":          {},
 		"Authorization":       {},
 		"Cookie":              {},
 		"Key":                 {},
@@ -25,6 +27,9 @@ var (
 		"X-Request-Key":       {},
 		"X-Request-Token":     {},
 		"X-Token":             {},
+		"X-Auth":              {},
+		"X-Auth-Token":        {},
+		"X-Authorization":     {},
 	}
 	httpHeaderMask = func(vs ...string) []string {
 		res := make([]string, len(vs))
