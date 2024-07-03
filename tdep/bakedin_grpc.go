@@ -1,7 +1,6 @@
 package tdep
 
 import (
-	"context"
 	"strconv"
 
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
@@ -17,22 +16,9 @@ func NewGRPC(cfg GRPCConfig, dialOptions []grpc.DialOption, options ...Option) *
 	resolve := func(o OptSet) (*grpc.ClientConn, error) {
 		target := cfg.Host + ":" + strconv.FormatInt(int64(cfg.Port), 10)
 
-		var (
-			unaryLog  grpc.UnaryClientInterceptor
-			streamLog grpc.StreamClientInterceptor
-		)
-
-		if o.IsDebug() {
-			decider := func(context.Context, string) bool { return true }
-
-			unaryLog = grpc_zap.PayloadUnaryClientInterceptor(o.Log(), decider)
-			streamLog = grpc_zap.PayloadStreamClientInterceptor(o.Log(), decider)
-		} else {
-			optDecider := grpc_zap.WithDecider(func(_ string, err error) bool { return err != nil })
-
-			unaryLog = grpc_zap.UnaryClientInterceptor(o.Log(), optDecider)
-			streamLog = grpc_zap.StreamClientInterceptor(o.Log(), optDecider)
-		}
+		logDecider := grpc_zap.WithDecider(func(_ string, err error) bool { return o.IsDebug() || err != nil })
+		unaryLog := grpc_zap.UnaryClientInterceptor(o.Log(), logDecider)
+		streamLog := grpc_zap.StreamClientInterceptor(o.Log(), logDecider)
 
 		dialOptions = append(dialOptions,
 			grpc.WithUserAgent(o.Name()),
