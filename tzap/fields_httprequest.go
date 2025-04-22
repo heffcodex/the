@@ -1,6 +1,7 @@
 package tzap
 
 import (
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -11,7 +12,8 @@ import (
 )
 
 var (
-	httpRequestMaskHeaders = map[string]struct{}{
+	HTTPRequestMaskHeaders        = maps.Clone(httpRequestMaskHeadersDefault)
+	httpRequestMaskHeadersDefault = map[string]struct{}{
 		"Api-Key":             {},
 		"Api-Token":           {},
 		"Auth":                {},
@@ -79,7 +81,7 @@ func HTTPRequest(r *http.Request) zap.Field {
 	headers := make(map[string][]string, len(r.Header))
 
 	for k, vs := range r.Header {
-		if _, mask := httpRequestMaskHeaders[k]; mask {
+		if _, mask := HTTPRequestMaskHeaders[k]; mask {
 			headers[k] = httpHeaderMask(vs...)
 		} else {
 			headers[k] = slices.Clone(vs)
@@ -106,7 +108,7 @@ func FastHTTPRequest(r *fasthttp.Request) zap.Field {
 		k := string(key)
 		v := string(value)
 
-		if _, mask := httpRequestMaskHeaders[k]; mask {
+		if _, mask := HTTPRequestMaskHeaders[k]; mask {
 			headers[k] = append(headers[k], httpHeaderMask(v)...)
 		} else {
 			headers[k] = append(headers[k], v)
