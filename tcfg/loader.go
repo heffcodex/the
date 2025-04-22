@@ -2,10 +2,18 @@ package tcfg
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
 	"github.com/spf13/viper"
+)
+
+const (
+	envPrefix     = "CFG"
+	envSuffixFile = "_FILE"
+	envSuffixPath = "_PATH"
+	envSuffixType = "_TYPE"
 )
 
 type Loader[C Config] struct {
@@ -22,26 +30,61 @@ func NewLoader[C Config](v *viper.Viper) *Loader[C] {
 func NewDefaultLoader[C Config]() *Loader[C] {
 	v := viper.New()
 
-	v.AddConfigPath(".")
-	v.AddConfigPath("./.data")
-	v.AddConfigPath("./.mnt/config.d")
-	v.SetConfigType("yaml")
+	if configFile, ok := os.LookupEnv(envPrefix + envSuffixFile); ok { //nolint:nestif // ok
+		v.SetConfigFile(configFile)
+	} else {
+		if configPath, ok := os.LookupEnv(envPrefix + envSuffixPath); ok {
+			v.AddConfigPath(configPath)
+		} else {
+			v.AddConfigPath(".")
+			v.AddConfigPath("./.data")
+			v.AddConfigPath("./.mnt/config.d")
+		}
+
+		if configType, ok := os.LookupEnv(envPrefix + envSuffixType); ok {
+			v.SetConfigType(configType)
+		} else {
+			v.SetConfigType("yaml")
+		}
+	}
+
 	v.AutomaticEnv()
-	v.SetEnvPrefix("CFG")
+	v.SetEnvPrefix(envPrefix)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	return NewLoader[C](v)
 }
 
-func (l *Loader[C]) LoadOnce() error {
+func (l *Loader[C]) Must() C {
+	c, err := l.Get()
+	if err != nil {
+		panic(err)
+	}
+
+	return c
+}
+
+func (l *Loader[C]) Get() (C, error) {
+	l.mutex.RLock()
+
+	if l.loaded {
+		defer l.mutex.RUnlock()
+		return l.config, nil
+	}
+
+	l.mutex.RUnlock()
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
 	if l.loaded {
-		return nil
+		return l.config, nil
 	}
 
-	return l.load()
+	if err := l.load(); err != nil {
+		return *new(C), fmt.Errorf("load config: %w", err)
+	}
+
+	return l.config, nil
 }
 
 func (l *Loader[C]) load() error {
@@ -55,7 +98,7 @@ func (l *Loader[C]) load() error {
 		return fmt.Errorf("read: %w", err)
 	}
 
-	if err := l.viper.UnmarshalExact(&config); err != nil {
+	if err := l.viper.Unmarshal(&config); err != nil {
 		return fmt.Errorf("unmarshal exact: %w", err)
 	}
 
@@ -67,15 +110,4 @@ func (l *Loader[C]) load() error {
 	l.loaded = true
 
 	return nil
-}
-
-func (l *Loader[C]) Get() C {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
-
-	if !l.loaded {
-		panic("config not loaded")
-	}
-
-	return l.config
 }
