@@ -1,4 +1,4 @@
-package tdep
+package tdep_redis
 
 import (
 	"context"
@@ -6,10 +6,12 @@ import (
 	"slices"
 
 	"github.com/heffcodex/redix"
+
+	"github.com/heffcodex/the/tdep"
 )
 
-func NewRedix(config redix.Config, options ...Option) *D[*redix.Client] {
-	resolve := func(o OptSet) (*redix.Client, error) {
+func NewRedix[C redix.UniversalClient](config redix.Config, options ...tdep.Option) *tdep.D[C] {
+	resolve := func(o tdep.OptSet) (C, error) {
 		_config := redix.Config{
 			Name:      config.Name,
 			Namespace: config.Namespace,
@@ -26,17 +28,18 @@ func NewRedix(config redix.Config, options ...Option) *D[*redix.Client] {
 		}
 
 		if _config.Namespace == "" {
-			_config.Namespace = redix.Namespace(o.Name())
-
-			if env := o.Env(); !env.IsEmpty() {
-				_config.Namespace = _config.Namespace.Append(env.String())
-			}
+			_config.Namespace = redix.Namespace(o.Name()).Append(o.Env().String())
 		}
 
-		return redix.NewClient(_config)
+		client, err := redix.NewClient(_config)
+		if err != nil {
+			return *new(C), err
+		}
+
+		return any(client).(C), nil //nolint:errcheck,revive // should never panic
 	}
 
-	return New(resolve, options...).WithHealthCheck(func(ctx context.Context, d *D[*redix.Client]) error {
+	return tdep.New(resolve, options...).WithHealthCheck(func(ctx context.Context, d *tdep.D[C]) error {
 		instance, err := d.Get()
 		if err != nil {
 			return fmt.Errorf("get: %w", err)
