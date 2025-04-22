@@ -17,3 +17,17 @@ func SilenceUsage(v bool) CmdOption {
 		cmd.SilenceUsage = v
 	}
 }
+
+func Commands(commands ...*cobra.Command) CmdOption {
+	return func(cmd *cobra.Command) {
+		for _, add := range commands {
+			cmd.AddCommand(add)
+		}
+	}
+}
+
+func Args(args ...string) CmdOption {
+	return func(cmd *cobra.Command) {
+		cmd.SetArgs(args)
+	}
+}

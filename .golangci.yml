@@ -10,7 +10,6 @@ output:
     - format: line-number
   print-issued-lines: false
   print-linter-name: true
-  uniq-by-line: true
   sort-results: true
 
 linters-settings:
@@ -417,9 +416,6 @@ linters-settings:
         env: upperSnake
         envconfig: upperSnake
 
-  tenv:
-    all: true
-
   thelper:
     test:
       first: true
@@ -485,7 +481,6 @@ linters:
     - depguard
     - dupword
     - errchkjson
-    - execinquery
     - exhaustive
     - exhaustruct
     - forbidigo
@@ -503,7 +498,6 @@ linters:
     - gofumpt
     - goheader
     - goimports
-    - gomnd
     - gomoddirectives
     - gosimple
     - grouper
@@ -519,6 +513,7 @@ linters:
     - staticcheck
     - stylecheck
     - tagalign
+    - tenv
     - testpackage
     - varnamelen
     - whitespace
@@ -529,6 +524,7 @@ linters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  uniq-by-line: true
   new: false
   fix: false
   exclude-rules:
