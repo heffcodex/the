@@ -2,9 +2,12 @@ package tcfg
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 type Config interface {
@@ -18,6 +21,12 @@ type Config interface {
 	AfterRead(v *viper.Viper) error
 }
 
+const (
+	AppEnvDefault             = EnvDev
+	AppLogLevelDefault        = zap.InfoLevel
+	AppShutdownTimeoutDefault = 15 * time.Second
+)
+
 var _ Config = (*BaseConfig)(nil)
 
 type BaseConfig struct {
@@ -25,6 +34,10 @@ type BaseConfig struct {
 }
 
 func (c BaseConfig) AppName() string {
+	if c.App.Name == "" {
+		return filepath.Base(os.Args[0])
+	}
+
 	return c.App.Name
 }
 
@@ -33,14 +46,26 @@ func (c BaseConfig) AppKey() Key {
 }
 
 func (c BaseConfig) AppEnv() Env {
+	if c.App.Env == "" {
+		return AppEnvDefault
+	}
+
 	return c.App.Env
 }
 
 func (c BaseConfig) LogLevel() string {
+	if c.App.LogLevel == "" {
+		return AppLogLevelDefault.String()
+	}
+
 	return c.App.LogLevel
 }
 
 func (c BaseConfig) ShutdownTimeout() time.Duration {
+	if c.App.ShutdownTimeout < 1 {
+		return AppShutdownTimeoutDefault
+	}
+
 	return time.Duration(c.App.ShutdownTimeout) * time.Second
 }
 
