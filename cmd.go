@@ -2,6 +2,8 @@ package the
 
 import (
 	"fmt"
+	"os"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -9,36 +11,31 @@ import (
 	"github.com/heffcodex/the/tcfg"
 )
 
-type NewAppFunc[C tcfg.Config, A App[C]] func() (A, error)
+type NewAppFunc[A App[C], C tcfg.Config] func() (A, error)
 
-type Cmd[C tcfg.Config, A App[C]] struct {
-	newApp   NewAppFunc[C, A]
-	opts     []CmdOption
-	commands []*cobra.Command
+type Cmd[A App[C], C tcfg.Config] struct {
+	newApp NewAppFunc[A, C]
+	opts   []CmdOption
 }
 
-func NewCmd[C tcfg.Config, A App[C]](newApp NewAppFunc[C, A], opts ...CmdOption) *Cmd[C, A] {
-	return &Cmd[C, A]{
+func NewCmd[A App[C], C tcfg.Config](newApp NewAppFunc[A, C], opts ...CmdOption) *Cmd[A, C] {
+	return &Cmd[A, C]{
 		newApp: newApp,
 		opts:   opts,
 	}
 }
 
-func (c *Cmd[C, A]) Add(commands ...*cobra.Command) {
-	c.commands = append(c.commands, commands...)
-}
-
-func (c *Cmd[C, A]) Execute() error {
-	const recoverStackSkip = 1
+func (c *Cmd[A, C]) Execute() error {
+	const recoverStackSkip = 2
 
 	defer func() {
 		if e := recover(); e != nil {
-			err := fmt.Errorf("%+v", e) //nolint: err113 // ok to construct dynamic err from panic value
+			err := fmt.Errorf("%+v", e) //nolint:err113 // ok to construct dynamic err from panic value
 			zap.L().Fatal("panic", zap.Error(err), zap.StackSkip("stack", recoverStackSkip))
 		}
 	}()
 
-	shut := newShutter()
+	shut := newShutter([]os.Signal{syscall.SIGINT, syscall.SIGTERM})
 	root := c.makeRoot(shut)
 
 	if err := root.Execute(); err != nil {
@@ -49,7 +46,7 @@ func (c *Cmd[C, A]) Execute() error {
 	return nil
 }
 
-func (c *Cmd[C, A]) makeRoot(shut *shutter) *cobra.Command {
+func (c *Cmd[A, C]) makeRoot(shut *shutter) *cobra.Command {
 	root := &cobra.Command{
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			app, err := c.newApp()
@@ -57,12 +54,12 @@ func (c *Cmd[C, A]) makeRoot(shut *shutter) *cobra.Command {
 				return fmt.Errorf("new app: %w", err)
 			}
 
-			cancelFn := cmdInject[C, A](cmd, app, shut)
+			cancelFn := cmdInject[A, C](cmd, app, shut)
 			timeout := app.C().ShutdownTimeout()
 
-			shut.setup(app.L(), cancelFn, app.Close, timeout)
+			shut.setup(app.L().Named("cmd"), cancelFn, app.Close, timeout)
 			go func() {
-				shut.waitInterrupt()
+				shut.rootWaitInterrupt()
 				shut.cancel()
 			}()
 
@@ -75,10 +72,6 @@ func (c *Cmd[C, A]) makeRoot(shut *shutter) *cobra.Command {
 
 	for _, opt := range c.opts {
 		opt(root)
-	}
-
-	for _, cmd := range c.commands {
-		root.AddCommand(cmd)
 	}
 
 	return root

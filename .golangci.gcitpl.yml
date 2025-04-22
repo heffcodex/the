@@ -10,7 +10,6 @@ output:
     - format: line-number
   print-issued-lines: false
   print-linter-name: true
-  uniq-by-line: true
   sort-results: true
 
 linters-settings:
@@ -31,5 +30,6 @@ linters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  uniq-by-line: true
   new: false
   fix: false
