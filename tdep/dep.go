@@ -3,8 +3,6 @@ package tdep
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"sync"
 
 	"go.uber.org/zap"
@@ -21,6 +19,9 @@ type (
 	CtxCloser interface {
 		Close(ctx context.Context) error
 	}
+	CtxHealthChecker interface {
+		Health(ctx context.Context) error
+	}
 )
 
 type (
@@ -29,26 +30,21 @@ type (
 )
 
 type D[T any] struct {
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	typ     string
 	opts    OptSet
 	health  HealthFunc[T]
 	resolve ResolveFunc[T]
 
-	// updated in behaviour of Get(), MustGet() or Close()
+	// updated in behaviour of Get(), Must() or Close()
 	instance T
 	resolved bool
 	closed   bool
 }
 
 func New[T any](resolve ResolveFunc[T], options ...Option) *D[T] {
-	tof := reflect.TypeOf(new(T)).Elem()
-	if tof.Kind() != reflect.Pointer {
-		panic(fmt.Sprintf("type `%s` is not a pointer", tof.String()))
-	}
-
 	return &D[T]{
-		typ:     tof.Elem().String(),
+		typ:     typeOfT[T](),
 		opts:    newOptSet(options...),
 		resolve: resolve,
 	}
@@ -68,6 +64,19 @@ func (d *D[T]) Get() (T, error) {
 		panic("nil dep")
 	}
 
+	d.mu.RLock()
+
+	if d.closed {
+		defer d.mu.RUnlock()
+		return *new(T), ErrClosed
+	}
+
+	if d.opts.singleton && d.resolved {
+		defer d.mu.RUnlock()
+		return d.instance, nil
+	}
+
+	d.mu.RUnlock()
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -90,7 +99,7 @@ func (d *D[T]) Get() (T, error) {
 	return d.instance, nil
 }
 
-func (d *D[T]) MustGet() T {
+func (d *D[T]) Must() T {
 	v, err := d.Get()
 	if err != nil {
 		panic(err)
@@ -108,8 +117,8 @@ func (d *D[T]) Health(ctx context.Context) error {
 }
 
 func (d *D[T]) Closed() bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	return d.closed
 }
