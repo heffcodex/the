@@ -3,8 +3,6 @@ package tdep
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"sync"
 
 	"go.uber.org/zap"
@@ -42,13 +40,8 @@ type D[T any] struct {
 }
 
 func New[T any](resolve ResolveFunc[T], options ...Option) *D[T] {
-	tof := reflect.TypeOf(new(T)).Elem()
-	if tof.Kind() != reflect.Pointer {
-		panic(fmt.Sprintf("type `%s` is not a pointer", tof.String()))
-	}
-
 	return &D[T]{
-		typ:     tof.Elem().String(),
+		typ:     typeOfT[T](),
 		opts:    newOptSet(options...),
 		resolve: resolve,
 	}

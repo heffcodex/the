@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/heffcodex/the/tcfg"
+	"github.com/heffcodex/the/tdep"
 	"github.com/heffcodex/the/tzap"
 )
 
@@ -21,6 +22,8 @@ var (
 type CloseFunc func(context.Context) error
 
 type App[C tcfg.Config] interface {
+	tdep.C
+
 	C() C
 	L() *zap.Logger
 	AddCloser(fns ...CloseFunc)
@@ -30,6 +33,8 @@ type App[C tcfg.Config] interface {
 var _ App[tcfg.Config] = (*BaseApp[tcfg.Config])(nil)
 
 type BaseApp[C tcfg.Config] struct {
+	tdep.Container
+
 	cfg C
 	log *zap.Logger
 
@@ -38,12 +43,14 @@ type BaseApp[C tcfg.Config] struct {
 	closerMu sync.Mutex
 }
 
-func NewBaseApp[C tcfg.Config](loader *tcfg.Loader[C]) (*BaseApp[C], error) {
-	if err := loader.LoadOnce(); err != nil {
+func NewBaseApp[C tcfg.Config](configLoader *tcfg.Loader[C]) (*BaseApp[C], error) {
+	log := zap.New(tzap.DefaultStdCoreConfig(zap.InfoLevel).Console())
+	defer zap.ReplaceGlobals(log)
+
+	config, err := configLoader.Get()
+	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
-
-	config := loader.Get()
 
 	logLevel, err := zap.ParseAtomicLevel(config.LogLevel())
 	if err != nil {
@@ -56,17 +63,13 @@ func NewBaseApp[C tcfg.Config](loader *tcfg.Loader[C]) (*BaseApp[C], error) {
 		zapCore zapcore.Core
 	)
 
-	switch appEnv {
-	case tcfg.EnvProd, tcfg.EnvStage, tcfg.EnvTest:
-		zapCore = zapCfg.JSON()
-	case tcfg.EnvDev:
-		fallthrough
-	default:
+	if appEnv == tcfg.EnvDev {
 		zapCore = zapCfg.Console()
+	} else {
+		zapCore = zapCfg.JSON()
 	}
 
-	log := zap.New(zapCore).Named(config.AppName()).With(zap.String("env", appEnv.String()))
-	zap.ReplaceGlobals(log)
+	log = zap.New(zapCore).Named(config.AppName()).With(zap.String("env", appEnv.String()))
 
 	_, err = maxprocs.Set(
 		maxprocs.Logger(
@@ -94,20 +97,20 @@ func (a *BaseApp[C]) AddCloser(fns ...CloseFunc) {
 }
 
 func (a *BaseApp[C]) Close(ctx context.Context) error {
-	return a.closerSafe(func() error {
-		errs := make([]error, 0, len(a.closers))
-
+	return a.closerSafe(func() (errs error) {
 		for i := len(a.closers) - 1; i >= 0; i-- {
-			closer := a.closers[i]
-
-			if err := closer(ctx); err != nil {
-				errs = append(errs, fmt.Errorf("%d: %w", i, err))
+			if err := a.closers[i](ctx); err != nil {
+				errs = errors.Join(errs, fmt.Errorf("%d: %w", i, err))
 			}
+		}
+
+		if err := a.Container.Close(ctx); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("container: %w", err))
 		}
 
 		a.closed = true
 
-		return errors.Join(errs...)
+		return errs
 	})
 }
 

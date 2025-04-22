@@ -1,40 +1,27 @@
-package tdep
+package tdep_bun
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
 	"github.com/uptrace/bun/extra/bundebug"
 	"go.uber.org/zap"
+
+	"github.com/heffcodex/the/tdep"
 )
 
-type BunConfig struct {
-	DSN            string `mapstructure:"dsn" json:"dsn" yaml:"dsn"`
-	MaxConnections int    `mapstructure:"maxConnections" json:"maxConnections" yaml:"maxConnections"`
-	MaxIdleTime    int    `mapstructure:"maxIdleTime" json:"maxIdleTime" yaml:"maxIdleTime"`
-}
-
-func (c *BunConfig) MaxIdleTimeSeconds() time.Duration {
-	if c.MaxIdleTime < 1 {
-		return 0
-	}
-
-	return time.Duration(c.MaxIdleTime) * time.Second
-}
-
-func NewBunPostgres(
-	cfg BunConfig,
+func NewPostgres(
+	cfg Config,
 	onTuneConnector func(conn *pgdriver.Connector),
 	onTuneSQLDB func(db *sql.DB),
 	onTuneBunDB func(db *bun.DB),
-	options ...Option,
-) *D[*bun.DB] {
-	resolve := func(o OptSet) (*bun.DB, error) {
+	options ...tdep.Option,
+) *tdep.D[*bun.DB] {
+	resolve := func(o tdep.OptSet) (*bun.DB, error) {
 		connOpts := []pgdriver.Option{
 			pgdriver.WithApplicationName(o.Name()),
 			pgdriver.WithDSN(cfg.DSN),
@@ -75,7 +62,7 @@ func NewBunPostgres(
 		return bunDB, nil
 	}
 
-	return New(resolve, options...).WithHealthCheck(func(ctx context.Context, d *D[*bun.DB]) error {
+	return tdep.New(resolve, options...).WithHealthCheck(func(ctx context.Context, d *tdep.D[*bun.DB]) error {
 		instance, err := d.Get()
 		if err != nil {
 			return fmt.Errorf("get: %w", err)
