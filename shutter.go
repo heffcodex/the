@@ -5,22 +5,18 @@ import (
 	"os"
 	"os/signal"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"go.uber.org/zap"
 )
 
-const (
-	DefaultShutdownTimeout = 10 * time.Second
-)
-
 type shutter struct {
 	// set by newShutter
-	signals    []os.Signal
-	notifyChan chan os.Signal
-	hasWaiter  atomic.Bool
-	inShutdown atomic.Bool
+	signals             []os.Signal
+	notifyChan          chan os.Signal
+	softInterruptChan   chan struct{}
+	userNotifyFenceChan chan struct{}
+	inShutdown          atomic.Bool
 
 	// set by setup
 	wasSetup   atomic.Bool
@@ -30,23 +26,21 @@ type shutter struct {
 	timeout    time.Duration
 }
 
-func newShutter(signals ...os.Signal) *shutter {
+func newShutter(signals []os.Signal) *shutter {
 	if len(signals) == 0 {
-		signals = []os.Signal{os.Interrupt, syscall.SIGTERM}
+		panic("must provide at least one signal")
 	}
 
 	return &shutter{
-		signals: signals,
+		signals:             signals,
+		softInterruptChan:   make(chan struct{}),
+		userNotifyFenceChan: make(chan struct{}),
 	}
 }
 
 func (s *shutter) setup(log *zap.Logger, cancelFn context.CancelFunc, onShutdown CloseFunc, timeout time.Duration) *shutter {
 	if !s.wasSetup.CompareAndSwap(false, true) {
 		panic("shutter setup called twice")
-	}
-
-	if timeout <= 0 {
-		timeout = DefaultShutdownTimeout
 	}
 
 	s.log = log
@@ -57,22 +51,35 @@ func (s *shutter) setup(log *zap.Logger, cancelFn context.CancelFunc, onShutdown
 	return s
 }
 
+func (s *shutter) rootWaitInterrupt() {
+	s.notifyChan = make(chan os.Signal, len(s.signals))
+	signal.Notify(s.notifyChan, s.signals...)
+
+	defer func() {
+		s.log.Debug("shutdown interrupt")
+
+		signal.Stop(s.notifyChan)
+		close(s.notifyChan)
+	}()
+
+	close(s.userNotifyFenceChan)
+	s.waitInterrupt()
+}
+
+func (s *shutter) userWaitInterrupt() {
+	<-s.userNotifyFenceChan
+	s.waitInterrupt()
+}
+
 func (s *shutter) waitInterrupt() {
-	firstWaiter := s.hasWaiter.CompareAndSwap(false, true)
-
-	if firstWaiter {
-		s.notifyChan = make(chan os.Signal, len(s.signals))
-		signal.Notify(s.notifyChan, s.signals...)
-
-		defer func() {
-			s.log.Debug("shutdown interrupt")
-
-			signal.Stop(s.notifyChan)
-			close(s.notifyChan)
-		}()
+	select {
+	case <-s.softInterruptChan:
+	case <-s.notifyChan:
 	}
+}
 
-	<-s.notifyChan
+func (s *shutter) softInterrupt() {
+	close(s.softInterruptChan)
 }
 
 func (s *shutter) down() {
@@ -86,7 +93,7 @@ func (s *shutter) down() {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer func() {
 		cancel()
-		_ = s.log.Sync() //nolint: wsl // it's ok
+		_ = s.log.Sync() //nolint:wsl // it's ok
 	}()
 
 	onShutdownErr := make(chan error)
