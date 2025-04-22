@@ -26,11 +26,7 @@ func NewRedix(config redix.Config, options ...Option) *D[*redix.Client] {
 		}
 
 		if _config.Namespace == "" {
-			_config.Namespace = redix.Namespace(o.Name())
-
-			if env := o.Env(); !env.IsEmpty() {
-				_config.Namespace = _config.Namespace.Append(env.String())
-			}
+			_config.Namespace = redix.Namespace(o.Name()).Append(o.Env().String())
 		}
 
 		return redix.NewClient(_config)

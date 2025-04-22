@@ -13,20 +13,32 @@ type (
 	shutterKey struct{}
 )
 
-func CApp[C tcfg.Config, A App[C]](cmd *cobra.Command) A {
-	return getApp[C, A](cmd)
+func CmdApp[C tcfg.Config, A App[C]](cmd *cobra.Command) A {
+	return ContextApp[C, A](cmd.Context())
 }
 
-func getApp[C tcfg.Config, A App[C]](cmd *cobra.Command) A {
-	return cmd.Context().Value(appKey{}).(A) //nolint: revive // unchecked-type-assertion: it's ok to panic here
+func ContextApp[C tcfg.Config, A App[C]](ctx context.Context) A {
+	return ctx.Value(appKey{}).(A) //nolint:errcheck,revive // it's ok to panic here
 }
 
-func CWaitInterrupt(cmd *cobra.Command) {
-	getShutter(cmd).waitInterrupt()
+func CmdWaitInterrupt(cmd *cobra.Command) {
+	ContextWaitInterrupt(cmd.Context())
 }
 
-func getShutter(cmd *cobra.Command) *shutter {
-	return cmd.Context().Value(shutterKey{}).(*shutter) //nolint: revive // unchecked-type-assertion: it's ok to panic here
+func ContextWaitInterrupt(ctx context.Context) {
+	contextShutter(ctx).userWaitInterrupt()
+}
+
+func CmdSoftInterrupt(cmd *cobra.Command) {
+	ContextSoftInterrupt(cmd.Context())
+}
+
+func ContextSoftInterrupt(ctx context.Context) {
+	contextShutter(ctx).softInterrupt()
+}
+
+func contextShutter(ctx context.Context) *shutter {
+	return ctx.Value(shutterKey{}).(*shutter) //nolint:errcheck,revive // it's ok to panic here
 }
 
 func cmdInject[C tcfg.Config, A App[C]](cmd *cobra.Command, app A, shut *shutter) (cancel context.CancelFunc) {

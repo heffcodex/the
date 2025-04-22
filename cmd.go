@@ -2,6 +2,8 @@ package the
 
 import (
 	"fmt"
+	"os"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -12,9 +14,8 @@ import (
 type NewAppFunc[C tcfg.Config, A App[C]] func() (A, error)
 
 type Cmd[C tcfg.Config, A App[C]] struct {
-	newApp   NewAppFunc[C, A]
-	opts     []CmdOption
-	commands []*cobra.Command
+	newApp NewAppFunc[C, A]
+	opts   []CmdOption
 }
 
 func NewCmd[C tcfg.Config, A App[C]](newApp NewAppFunc[C, A], opts ...CmdOption) *Cmd[C, A] {
@@ -24,21 +25,17 @@ func NewCmd[C tcfg.Config, A App[C]](newApp NewAppFunc[C, A], opts ...CmdOption)
 	}
 }
 
-func (c *Cmd[C, A]) Add(commands ...*cobra.Command) {
-	c.commands = append(c.commands, commands...)
-}
-
 func (c *Cmd[C, A]) Execute() error {
-	const recoverStackSkip = 1
+	const recoverStackSkip = 2
 
 	defer func() {
 		if e := recover(); e != nil {
-			err := fmt.Errorf("%+v", e) //nolint: err113 // ok to construct dynamic err from panic value
+			err := fmt.Errorf("%+v", e) //nolint:err113 // ok to construct dynamic err from panic value
 			zap.L().Fatal("panic", zap.Error(err), zap.StackSkip("stack", recoverStackSkip))
 		}
 	}()
 
-	shut := newShutter()
+	shut := newShutter([]os.Signal{syscall.SIGINT, syscall.SIGTERM})
 	root := c.makeRoot(shut)
 
 	if err := root.Execute(); err != nil {
@@ -62,7 +59,7 @@ func (c *Cmd[C, A]) makeRoot(shut *shutter) *cobra.Command {
 
 			shut.setup(app.L(), cancelFn, app.Close, timeout)
 			go func() {
-				shut.waitInterrupt()
+				shut.rootWaitInterrupt()
 				shut.cancel()
 			}()
 
@@ -75,10 +72,6 @@ func (c *Cmd[C, A]) makeRoot(shut *shutter) *cobra.Command {
 
 	for _, opt := range c.opts {
 		opt(root)
-	}
-
-	for _, cmd := range c.commands {
-		root.AddCommand(cmd)
 	}
 
 	return root
