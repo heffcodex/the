@@ -1,0 +1,6 @@
+app:
+  name: test
+  key: "00000000000000000000000000000000"
+  env: dev
+  logLevel: debug
+  shutdownTimeout: 30
