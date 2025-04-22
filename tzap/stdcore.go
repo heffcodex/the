@@ -7,13 +7,24 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+const (
+	KeyMessage     = "msg"
+	KeyLevel       = "level"
+	KeyTime        = "ts"
+	KeyName        = "logger"
+	KeyCaller      = "caller"
+	KeyFunction    = zapcore.OmitKey
+	KeyStacktrace  = "stacktrace"
+	KeyHTTPRequest = "http_request"
+)
+
 type StdCoreConfig struct {
 	zapcore.EncoderConfig
 	LevelEnabler zapcore.LevelEnabler
 }
 
-func DefaultStdCoreConfig(le zapcore.LevelEnabler) StdCoreConfig {
-	return StdCoreConfig{
+func DefaultStdCoreConfig(le zapcore.LevelEnabler) *StdCoreConfig {
+	return &StdCoreConfig{
 		EncoderConfig: zapcore.EncoderConfig{
 			MessageKey:          KeyMessage,
 			LevelKey:            KeyLevel,
@@ -52,15 +63,5 @@ func (c *StdCoreConfig) core(enc zapcore.Encoder) zapcore.Core {
 		le = zap.LevelEnablerFunc(func(zapcore.Level) bool { return true })
 	}
 
-	leOut := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-		return le.Enabled(lvl) && lvl < zapcore.ErrorLevel
-	})
-	leErr := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-		return le.Enabled(lvl) && lvl >= zapcore.ErrorLevel
-	})
-
-	return zapcore.NewTee(
-		zapcore.NewCore(enc, zapcore.Lock(os.Stdout), leOut),
-		zapcore.NewCore(enc, zapcore.Lock(os.Stderr), leErr),
-	)
+	return zapcore.NewCore(enc, zapcore.Lock(os.Stderr), le)
 }
