@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"go.uber.org/automaxprocs/maxprocs"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/heffcodex/the/tcfg"
+	"github.com/heffcodex/the/tdep"
 	"github.com/heffcodex/the/tzap"
 )
 
@@ -18,9 +21,14 @@ var (
 	ErrClosed = errors.New("app is already closed")
 )
 
-type CloseFunc func(context.Context) error
+type (
+	HealthFunc func(context.Context) error
+	CloseFunc  func(context.Context) error
+)
 
 type App[C tcfg.Config] interface {
+	tdep.C
+
 	C() C
 	L() *zap.Logger
 	AddCloser(fns ...CloseFunc)
@@ -30,20 +38,27 @@ type App[C tcfg.Config] interface {
 var _ App[tcfg.Config] = (*BaseApp[tcfg.Config])(nil)
 
 type BaseApp[C tcfg.Config] struct {
+	tdep.Container
+
 	cfg C
 	log *zap.Logger
 
+	healths  []HealthFunc
+	healthMu sync.RWMutex
+
 	closed   bool
 	closers  []CloseFunc
-	closerMu sync.Mutex
+	closerMu sync.RWMutex
 }
 
-func NewBaseApp[C tcfg.Config](loader *tcfg.Loader[C]) (*BaseApp[C], error) {
-	if err := loader.LoadOnce(); err != nil {
+func NewBaseApp[C tcfg.Config](configLoader *tcfg.Loader[C]) (*BaseApp[C], error) {
+	log := zap.New(tzap.DefaultStdCoreConfig(zap.InfoLevel).Console())
+	defer zap.ReplaceGlobals(log)
+
+	config, err := configLoader.Get()
+	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
-
-	config := loader.Get()
 
 	logLevel, err := zap.ParseAtomicLevel(config.LogLevel())
 	if err != nil {
@@ -56,17 +71,13 @@ func NewBaseApp[C tcfg.Config](loader *tcfg.Loader[C]) (*BaseApp[C], error) {
 		zapCore zapcore.Core
 	)
 
-	switch appEnv {
-	case tcfg.EnvProd, tcfg.EnvStage, tcfg.EnvTest:
-		zapCore = zapCfg.JSON()
-	case tcfg.EnvDev:
-		fallthrough
-	default:
+	if appEnv == tcfg.EnvDev {
 		zapCore = zapCfg.Console()
+	} else {
+		zapCore = zapCfg.JSON()
 	}
 
-	log := zap.New(zapCore).Named(config.AppName()).With(zap.String("env", appEnv.String()))
-	zap.ReplaceGlobals(log)
+	log = zap.New(zapCore).Named(config.AppName()).With(zap.String("env", appEnv.String()))
 
 	_, err = maxprocs.Set(
 		maxprocs.Logger(
@@ -86,32 +97,77 @@ func NewBaseApp[C tcfg.Config](loader *tcfg.Loader[C]) (*BaseApp[C], error) {
 func (a *BaseApp[C]) C() C           { return a.cfg }
 func (a *BaseApp[C]) L() *zap.Logger { return a.log }
 
+func (a *BaseApp[C]) AddHealthCheck(fns ...HealthFunc) {
+	a.closerMu.RLock()
+	defer a.closerMu.RUnlock()
+
+	if a.closed {
+		return
+	}
+
+	a.healthMu.Lock()
+	defer a.healthMu.Unlock()
+
+	a.healths = append(a.healths, fns...)
+}
+
+func (a *BaseApp[C]) Health(ctx context.Context) error {
+	a.closerMu.RLock()
+	defer a.closerMu.RUnlock()
+
+	if a.closed {
+		return ErrClosed
+	}
+
+	var (
+		errs  error
+		errMu sync.Mutex
+	)
+
+	addIfErr := func(err error) bool {
+		if err == nil {
+			return false
+		}
+
+		errMu.Lock()
+		errs = errors.Join(errs, err)
+		errMu.Unlock()
+
+		return true
+	}
+
+	semSize := int64(runtime.NumCPU())*2 + 1
+	sem := semaphore.NewWeighted(semSize)
+
+	a.healthMu.RLock()
+	defer a.healthMu.RUnlock()
+
+	for _, hc := range append(a.healths, a.Container.Health) {
+		if addIfErr(sem.Acquire(ctx, 1)) {
+			break
+		}
+
+		go func() {
+			defer sem.Release(1)
+			addIfErr(hc(ctx))
+		}()
+	}
+
+	_ = sem.Acquire(context.Background(), semSize) //nolint:contextcheck // simulates the WaitGroup.Wait() behaviour
+
+	return errs
+}
+
 func (a *BaseApp[C]) AddCloser(fns ...CloseFunc) {
-	_ = a.closerSafe(func() error {
+	a.closerMu.Lock()
+	defer a.closerMu.Unlock()
+
+	if !a.closed {
 		a.closers = append(a.closers, fns...)
-		return nil
-	})
+	}
 }
 
 func (a *BaseApp[C]) Close(ctx context.Context) error {
-	return a.closerSafe(func() error {
-		errs := make([]error, 0, len(a.closers))
-
-		for i := len(a.closers) - 1; i >= 0; i-- {
-			closer := a.closers[i]
-
-			if err := closer(ctx); err != nil {
-				errs = append(errs, fmt.Errorf("%d: %w", i, err))
-			}
-		}
-
-		a.closed = true
-
-		return errors.Join(errs...)
-	})
-}
-
-func (a *BaseApp[C]) closerSafe(f func() error) error {
 	a.closerMu.Lock()
 	defer a.closerMu.Unlock()
 
@@ -119,5 +175,19 @@ func (a *BaseApp[C]) closerSafe(f func() error) error {
 		return ErrClosed
 	}
 
-	return f()
+	var errs error
+
+	for i := len(a.closers) - 1; i >= 0; i-- {
+		if err := a.closers[i](ctx); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("app[%d]: %w", i, err))
+		}
+	}
+
+	if err := a.Container.Close(ctx); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("ctn: %w", err))
+	}
+
+	a.closed = true
+
+	return errs
 }
