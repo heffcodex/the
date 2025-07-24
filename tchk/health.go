@@ -12,6 +12,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	HealthUpdateTimeoutDefault = 3 * time.Second
+)
+
 var (
 	ErrStopped = errors.New("stopped")
 	ErrUnknown = errors.New("unknown")
@@ -21,8 +25,8 @@ type HealthFunc func(ctx context.Context) error
 
 type HealthChecker struct {
 	mu       sync.RWMutex
-	timeout  time.Duration
 	interval time.Duration
+	timeout  time.Duration
 	checks   []HealthFunc
 	maxJobs  int
 	result   error
@@ -37,12 +41,19 @@ type HealthChecker struct {
 // and the result update is performed explicitly on each HealthChecker.Health() call.
 //
 // `timeout` is used to construct a time-limited context for a single result update.
-// Zero or negative `timeout` allows the update to run for an unlimited time,
-// unless either a higher-level context passed to HealthChecker.Health() is expired or HealthChecker.Stop() is called.
+// Zero or negative `timeout` means that [HealthUpdateTimeoutDefault] will be used as its value.
 func NewHealthChecker(interval, timeout time.Duration) *HealthChecker {
+	if interval < 0 {
+		interval = 0
+	}
+
+	if timeout <= 0 {
+		timeout = HealthUpdateTimeoutDefault
+	}
+
 	return &HealthChecker{
-		timeout:  max(0, timeout),
-		interval: max(0, interval),
+		interval: interval,
+		timeout:  timeout,
 		maxJobs:  runtime.NumCPU()*2 + 1,
 		stop:     make(chan struct{}),
 	}
@@ -66,9 +77,10 @@ func (c *HealthChecker) Health(ctx context.Context) error {
 	}
 
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	result := c.result
+	c.mu.RUnlock()
 
-	return c.result
+	return result
 }
 
 func (c *HealthChecker) Run() error {
@@ -85,9 +97,27 @@ func (c *HealthChecker) Run() error {
 		case <-c.stop:
 			return ErrStopped
 		case <-t.C:
-			c.updateChecks(context.Background())
-			t.Reset(c.interval)
 		}
+
+		func() {
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), c.timeout)
+			defer cancel()
+
+			stopCtx, stopCause := context.WithCancelCause(timeoutCtx)
+			defer stopCause(nil)
+
+			go func() {
+				select {
+				case <-c.stop:
+					stopCause(ErrStopped)
+				case <-stopCtx.Done():
+					return
+				}
+			}()
+
+			c.updateChecks(stopCtx)
+			t.Reset(c.interval)
+		}()
 	}
 }
 
@@ -105,7 +135,8 @@ func (c *HealthChecker) updateChecks(ctx context.Context) {
 		return
 	}
 
-	g, gCtx := c.newErrGroup(ctx)
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(c.maxJobs)
 
 	for i, check := range c.checks {
 		g.Go(func() error {
@@ -118,28 +149,4 @@ func (c *HealthChecker) updateChecks(ctx context.Context) {
 	}
 
 	c.result = g.Wait()
-}
-
-func (c *HealthChecker) newErrGroup(ctx context.Context) (*errgroup.Group, context.Context) {
-	var timeoutCancel context.CancelFunc = func() {}
-
-	ctx, cancelCause := context.WithCancelCause(ctx)
-	if c.timeout > 0 {
-		ctx, timeoutCancel = context.WithTimeout(ctx, c.timeout)
-	}
-
-	go func() {
-		defer timeoutCancel()
-		select {
-		case <-c.stop:
-			cancelCause(ErrStopped)
-		case <-ctx.Done():
-			return
-		}
-	}()
-
-	g, gCtx := errgroup.WithContext(ctx)
-	g.SetLimit(c.maxJobs)
-
-	return g, gCtx
 }
