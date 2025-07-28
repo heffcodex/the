@@ -36,9 +36,13 @@ func (c *Cmd[A, C]) Execute() error {
 	}()
 
 	shut := newShutter([]os.Signal{syscall.SIGINT, syscall.SIGTERM})
-	root := c.makeRoot(shut)
 
-	if err := root.Execute(); err != nil {
+	root, err := c.makeRoot(shut)
+	if err != nil {
+		return err
+	}
+
+	if err = root.Execute(); err != nil {
 		shut.down()
 		return err
 	}
@@ -46,14 +50,14 @@ func (c *Cmd[A, C]) Execute() error {
 	return nil
 }
 
-func (c *Cmd[A, C]) makeRoot(shut *shutter) *cobra.Command {
+func (c *Cmd[A, C]) makeRoot(shut *shutter) (*cobra.Command, error) {
+	app, err := c.newApp()
+	if err != nil {
+		return nil, fmt.Errorf("new app: %w", err)
+	}
+
 	root := &cobra.Command{
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			app, err := c.newApp()
-			if err != nil {
-				return fmt.Errorf("new app: %w", err)
-			}
-
 			cancelFn := cmdInject[A, C](cmd, app, shut)
 			timeout := app.C().ShutdownTimeout()
 
@@ -74,5 +78,5 @@ func (c *Cmd[A, C]) makeRoot(shut *shutter) *cobra.Command {
 		opt(root)
 	}
 
-	return root
+	return root, nil
 }
