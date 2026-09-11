@@ -1,4 +1,4 @@
-module github.com/heffcodex/the/dep/bakedin/tdep_bun
+module github.com/heffcodex/the/dep/bakedin/tdi_bun
 
 go 1.27.1
 
@@ -29,6 +29,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 )

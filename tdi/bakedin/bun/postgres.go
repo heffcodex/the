@@ -1,4 +1,4 @@
-package tdep_bun
+package tdi_bun
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun/extra/bundebug"
 	"go.uber.org/zap"
 
-	"github.com/heffcodex/the/tdep"
+	"github.com/heffcodex/the/tdi"
 )
 
 var _ IDB = (*bun.DB)(nil)
@@ -26,9 +26,9 @@ func NewPostgres[C IDB](
 	onTuneConnector func(conn *pgdriver.Connector),
 	onTuneSQLDB func(db *sql.DB),
 	onTuneBunDB func(db *bun.DB),
-	paramFuncs ...tdep.ParamFunc,
-) *tdep.D[C] {
-	resolve := func(_ context.Context, p tdep.Params) (C, error) {
+	paramFuncs ...tdi.ParamFunc,
+) *tdi.D[C] {
+	resolve := func(_ context.Context, p tdi.Params) (C, error) {
 		connOpts := []pgdriver.Option{
 			pgdriver.WithApplicationName(p.Name()),
 			pgdriver.WithDSN(cfg.DSN),
@@ -69,14 +69,10 @@ func NewPostgres[C IDB](
 		return any(bunDB).(C), nil //nolint:errcheck,revive // should never panic
 	}
 
-	return tdep.NewWithHealthCheck(resolve, func(ctx context.Context, d *tdep.D[C]) error {
+	return tdi.NewWithHealthCheck(resolve, func(ctx context.Context, d *tdi.D[C]) error {
 		instance, err := d.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("get: %w", err)
-		}
-
-		if !d.Params().IsSingleton() {
-			defer func() { _ = d.Close(ctx) }()
 		}
 
 		if err = instance.PingContext(ctx); err != nil {

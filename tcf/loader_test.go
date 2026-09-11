@@ -1,4 +1,4 @@
-package tcfg
+package tcf
 
 import (
 	"testing"
@@ -9,13 +9,13 @@ import (
 func TestNewLoader(t *testing.T) {
 	t.Parallel()
 
-	l := NewLoader[BaseConfig](nil)
+	l := NewLoader[Config](nil)
 	assert.Nil(t, l.viper)
 }
 
 func TestNewDefaultLoader(t *testing.T) {
 	t.Parallel()
 
-	l := NewDefaultLoader[BaseConfig]()
+	l := NewDefaultLoader[Config]()
 	assert.NotNil(t, l.viper)
 }

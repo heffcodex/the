@@ -1,29 +1,50 @@
 package the
 
 import (
+	"context"
 	"fmt"
-	"github.com/heffcodex/the/tcfg"
-	"github.com/heffcodex/the/tdep"
-	"github.com/heffcodex/the/tzap"
+	"os"
+
 	"go.uber.org/automaxprocs/maxprocs"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
+	"github.com/heffcodex/the/tcf"
+	"github.com/heffcodex/the/tdi"
+	"github.com/heffcodex/the/tzap"
 )
 
-type App[C tcfg.Config] interface {
+type IApp[C tcf.IConfig] interface {
 	C() C
-	D() *tdep.Container
+	D() *tdi.Container
 	L() *zap.Logger
+	Close(ctx context.Context) error
 }
 
-var _ App[tcfg.Config] = (*BaseApp[tcfg.Config])(nil)
+var _ IApp[tcf.IConfig] = (*App[tcf.IConfig])(nil)
 
-type BaseApp[C tcfg.Config] struct {
+type App[C tcf.IConfig] struct {
 	cfg C
-	ctn tdep.Container
+	ctn tdi.Container
 	log *zap.Logger
 }
 
-func NewBaseApp[C tcfg.Config](configLoader *tcfg.Loader[C], zapCoreFunc tzap.CoreFunc) (*BaseApp[C], error) {
+func NewDefaultApp[C tcf.IConfig]() (*App[C], error) {
+	var (
+		configLoader = tcf.NewDefaultLoader[C]()
+		logEncoder   func(cfg zapcore.EncoderConfig) zapcore.Encoder
+	)
+
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		logEncoder = zapcore.NewJSONEncoder
+	} else {
+		logEncoder = zapcore.NewConsoleEncoder
+	}
+
+	return NewApp(configLoader, tzap.DefaultCore(logEncoder))
+}
+
+func NewApp[C tcf.IConfig](configLoader *tcf.Loader[C], zapCoreFunc tzap.CoreFunc) (*App[C], error) {
 	log := zap.New(zapCoreFunc(zap.InfoLevel))
 	defer func() { _ = zap.ReplaceGlobals(log) }()
 
@@ -44,12 +65,13 @@ func NewBaseApp[C tcfg.Config](configLoader *tcfg.Loader[C], zapCoreFunc tzap.Co
 		return nil, fmt.Errorf("set maxprocs: %w", err)
 	}
 
-	return &BaseApp[C]{
+	return &App[C]{
 		cfg: config,
 		log: log,
 	}, nil
 }
 
-func (a *BaseApp[C]) C() C               { return a.cfg }
-func (a *BaseApp[C]) D() *tdep.Container { return &a.ctn }
-func (a *BaseApp[C]) L() *zap.Logger     { return a.log }
+func (a *App[C]) C() C                            { return a.cfg }
+func (a *App[C]) D() *tdi.Container               { return &a.ctn }
+func (a *App[C]) L() *zap.Logger                  { return a.log }
+func (a *App[C]) Close(ctx context.Context) error { return a.ctn.Close(ctx) }

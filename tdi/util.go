@@ -1,13 +1,14 @@
-package tdep
+package tdi
 
 import (
 	"context"
-	"github.com/elliotchance/orderedmap/v3"
 	"reflect"
 	"sync"
+
+	"github.com/elliotchance/orderedmap/v3"
 )
 
-func typeOfT[T any]() string {
+func typeNameOf[T any]() string {
 	tof := reflect.TypeFor[T]()
 	if tof.Kind() == reflect.Pointer {
 		tof = tof.Elem()
@@ -27,16 +28,16 @@ func addToChain(ctx context.Context, typ string) (context.Context, error) {
 	)
 
 	chain, ok := ctx.Value(depChainKey{}).(*depChain)
-	if !ok {
+	if ok {
+		chain.Lock()
+		defer chain.Unlock()
+
+		if chain.m.Has(typ) {
+			return nil, newCircularDependencyError(typ, chain.m)
+		}
+	} else {
 		chain = &depChain{m: orderedmap.NewOrderedMap[string, struct{}]()}
 		ctx = context.WithValue(ctx, depChainKey{}, chain)
-	}
-
-	chain.Lock()
-	defer chain.Unlock()
-
-	if chain.m.Has(typ) {
-		return nil, newCircularDependencyError(typ, chain.m)
 	}
 
 	chain.m.Set(typ, struct{}{})

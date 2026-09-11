@@ -75,13 +75,43 @@ linters:
     warn-unused: true
     generated: strict
     rules:
-      - text: "^[a-z].+?\\s" # allow private globals
-        linters:
-          - gochecknoglobals
       - text: "local replacement are not allowed: github.com/heffcodex/the"
         linters:
            - gomoddirectives
 
+    paths: []
+
+formatters:
+  enable:
+    - gci
+    - golines
+    - gofumpt
+
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/heffcodex/the)
+        - localmodule
+
+      no-inline-comments: false
+      no-prefix-comments: false
+      custom-order: true
+      no-lex-order: false
+    golines:
+      max-len: 140
+      tab-len: 4
+      shorten-comments: true
+      reformat-tags: false
+      chain-split-dots: true
+    gofumpt:
+      module-path: ""
+      extra-rules: false
+
+  exclusions:
+    warn-unused: true
+    generated: strict
     paths: []
 
 issues:

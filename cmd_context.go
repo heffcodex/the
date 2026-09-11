@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/heffcodex/the/tcfg"
+	"github.com/heffcodex/the/tcf"
 )
 
 type (
@@ -13,11 +13,11 @@ type (
 	shutterKey struct{}
 )
 
-func CmdApp[A App[C], C tcfg.Config](cmd *cobra.Command) A {
+func CmdApp[A IApp[C], C tcf.IConfig](cmd *cobra.Command) A {
 	return CtxApp[A, C](cmd.Context())
 }
 
-func CtxApp[A App[C], C tcfg.Config](ctx context.Context) A {
+func CtxApp[A IApp[C], C tcf.IConfig](ctx context.Context) A {
 	return ctx.Value(appKey{}).(A) //nolint:errcheck,revive // it's ok to panic here
 }
 
@@ -41,7 +41,7 @@ func ctxShutter(ctx context.Context) *shutter {
 	return ctx.Value(shutterKey{}).(*shutter) //nolint:errcheck,revive // it's ok to panic here
 }
 
-func cmdInject[A App[C], C tcfg.Config](cmd *cobra.Command, app A, shut *shutter) (cancel context.CancelFunc) {
+func cmdInject[A IApp[C], C tcf.IConfig](cmd *cobra.Command, app A, shut *shutter) (cancel context.CancelFunc) {
 	ctx := cmd.Context()
 
 	ctx = context.WithValue(ctx, appKey{}, app)

@@ -9,33 +9,33 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-
-	"github.com/heffcodex/the/tcfg"
-	"github.com/heffcodex/the/tzap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/heffcodex/the/tcf"
+	"github.com/heffcodex/the/tzap"
 )
 
 type testConfig struct {
-	tcfg.BaseConfig `mapstructure:",squash"`
+	tcf.Config `mapstructure:",squash"`
 }
 type testApp struct {
-	*BaseApp[testConfig]
+	*App[testConfig]
 }
 
 func newTestApp() (*testApp, error) {
 	v := viper.New()
 	v.SetConfigFile("config.test.yaml")
 
-	configLoader := tcfg.NewLoader[testConfig](v)
+	configLoader := tcf.NewLoader[testConfig](v)
 	zapCoreFunc := tzap.DefaultCore(zapcore.NewConsoleEncoder)
 
-	baseApp, err := NewBaseApp(configLoader, zapCoreFunc)
+	baseApp, err := NewApp(configLoader, zapCoreFunc)
 	if err != nil {
 		return nil, err
 	}
 
 	return &testApp{
-		BaseApp: baseApp,
+		App: baseApp,
 	}, nil
 }
 

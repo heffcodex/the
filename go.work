@@ -2,6 +2,6 @@ go 1.27.1
 
 use (
 	.
-	./tdep/bakedin/bun
-	./tdep/bakedin/grpc
+	./tdi/bakedin/bun
+	./tdi/bakedin/grpc
 )

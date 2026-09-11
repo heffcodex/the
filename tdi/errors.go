@@ -1,9 +1,11 @@
-package tdep
+package tdi
 
 import (
 	"errors"
-	"github.com/elliotchance/orderedmap/v3"
+	"slices"
 	"strings"
+
+	"github.com/elliotchance/orderedmap/v3"
 )
 
 var (
@@ -28,6 +30,10 @@ func newCircularDependencyError(typ string, chain *orderedmap.OrderedMap[string,
 	}
 
 	return CircularDependencyError{trace: append(trace, typ)}
+}
+
+func (e CircularDependencyError) Trace() []string {
+	return slices.Clone(e.trace)
 }
 
 func (e CircularDependencyError) Error() string {

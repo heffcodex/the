@@ -8,17 +8,17 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
-	"github.com/heffcodex/the/tcfg"
+	"github.com/heffcodex/the/tcf"
 )
 
-type NewAppFunc[A App[C], C tcfg.Config] func() (A, error)
+type NewAppFunc[A IApp[C], C tcf.IConfig] func() (A, error)
 
-type Cmd[A App[C], C tcfg.Config] struct {
+type Cmd[A IApp[C], C tcf.IConfig] struct {
 	newApp NewAppFunc[A, C]
 	opts   []CmdOption
 }
 
-func NewCmd[A App[C], C tcfg.Config](newApp NewAppFunc[A, C], opts ...CmdOption) *Cmd[A, C] {
+func NewCmd[A IApp[C], C tcf.IConfig](newApp NewAppFunc[A, C], opts ...CmdOption) *Cmd[A, C] {
 	return &Cmd[A, C]{
 		newApp: newApp,
 		opts:   opts,
@@ -61,7 +61,7 @@ func (c *Cmd[A, C]) makeRoot(shut *shutter) (*cobra.Command, error) {
 			cancelFn := cmdInject[A, C](cmd, app, shut)
 			timeout := app.C().ShutdownTimeout()
 
-			shut.setup(app.L().Named("cmd"), cancelFn, app.D().Close, timeout)
+			shut.setup(app.L().Named("cmd"), cancelFn, app.Close, timeout)
 			go func() {
 				shut.rootWaitInterrupt()
 				shut.cancel()

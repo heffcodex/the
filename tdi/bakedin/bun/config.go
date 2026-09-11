@@ -1,4 +1,4 @@
-package tdep_bun
+package tdi_bun
 
 import "time"
 

@@ -1,4 +1,4 @@
-package tdep
+package tdi
 
 import (
 	"context"
@@ -48,7 +48,7 @@ func New[T any](resolve ResolveFunc[T], paramFuncs ...ParamFunc) *D[T] {
 
 func NewWithHealthCheck[T any](resolve ResolveFunc[T], health HealthFunc[T], paramFuncs ...ParamFunc) *D[T] {
 	return &D[T]{
-		typ:     typeOfT[T](),
+		typ:     typeNameOf[T](),
 		params:  newParams(paramFuncs...),
 		health:  health,
 		resolve: resolve,
@@ -71,7 +71,7 @@ func (d *D[T]) Get(ctx context.Context) (T, error) {
 		return *new(T), ErrClosed
 	}
 
-	if d.params.singleton && d.resolved {
+	if d.resolved {
 		defer d.mu.RUnlock()
 		return d.instance, nil
 	}
@@ -84,7 +84,7 @@ func (d *D[T]) Get(ctx context.Context) (T, error) {
 		return *new(T), ErrClosed
 	}
 
-	if !d.params.singleton || !d.resolved {
+	if !d.resolved {
 		instance, err := d.resolve(ctx, d.params)
 		if err != nil {
 			return *new(T), err
@@ -110,6 +110,15 @@ func (d *D[T]) Must(ctx context.Context) T {
 
 func (d *D[T]) Health(ctx context.Context) error {
 	if d.health == nil {
+		return nil
+	}
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if d.closed {
+		return ErrClosed
+	} else if !d.resolved {
 		return nil
 	}
 
@@ -140,11 +149,7 @@ func (d *D[T]) Close(ctx context.Context) error {
 		return nil
 	}
 
-	defer func() {
-		d.instance = *new(T)
-		d.resolved = false
-		d.closed = true
-	}()
+	defer func() { d.closed = true }()
 
 	switch ityp := any(d.instance).(type) {
 	case Closer:

@@ -1,4 +1,4 @@
-package tcfg
+package tcf
 
 import (
 	"crypto/hkdf"

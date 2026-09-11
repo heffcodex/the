@@ -1,13 +1,15 @@
-package tdep
+package tdi
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/elliotchance/orderedmap/v3"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 )
 
 type Container struct {
@@ -32,7 +34,7 @@ func (c *Container) MustAdd[T any](dep *D[T]) {
 
 func (c *Container) Get[T any](ctx context.Context) (T, error) {
 	var (
-		typ = typeOfT[T]()
+		typ = typeNameOf[T]()
 		err error
 	)
 
@@ -65,18 +67,42 @@ func (c *Container) MustGet[T any](ctx context.Context) T {
 }
 
 func (c *Container) Health(ctx context.Context) HealthCheckResult {
-	res := HealthCheckResult{results: make(map[string]error)}
+	var (
+		res   = HealthCheckResult{results: make(map[string]error)}
+		resMu sync.Mutex
+	)
+
+	g, gtx := errgroup.WithContext(ctx)
+	g.SetLimit(runtime.NumCPU()*2 + 1)
 
 	c.deps.Range(func(name, dep any) bool {
-		if hc, ok := dep.(CtxHealthChecker); ok {
-			if err := hc.Health(ctx); err != nil {
-				res.results[name.(string)] = err
-				res.errCount++
-			}
+		hc, ok := dep.(CtxHealthChecker)
+		if !ok {
+			return true
 		}
+
+		g.Go(func() error {
+			err := gtx.Err()
+			if err == nil {
+				err = hc.Health(gtx)
+			}
+
+			resMu.Lock()
+			res.results[name.(string)] = err
+			res.errCount++
+			resMu.Unlock()
+
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return err
+			}
+
+			return nil
+		})
 
 		return true
 	})
+
+	_ = g.Wait()
 
 	return res
 }

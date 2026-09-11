@@ -1,4 +1,4 @@
-package tdep
+package tdi
 
 import "maps"
 

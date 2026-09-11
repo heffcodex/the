@@ -1,10 +1,11 @@
-package tdep
+package tdi
 
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestContainer_CircularDependencyDetection(t *testing.T) {
@@ -43,7 +44,7 @@ func TestContainer_CircularDependencyDetection(t *testing.T) {
 
 	e, ok := errors.AsType[CircularDependencyError](err)
 	require.True(t, ok)
-	require.Equal(t, []string{"tdep.A", "tdep.B", "tdep.A"}, e.trace)
+	require.Equal(t, []string{"tdi.A", "tdi.B", "tdi.A"}, e.Trace())
 
 	t.Log(err.Error())
 }

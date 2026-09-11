@@ -1,4 +1,4 @@
-package tcfg
+package tcf
 
 import (
 	"fmt"
@@ -11,30 +11,30 @@ import (
 )
 
 const (
-	envPrefix     = "CFG"
-	envSuffixFile = "_FILE"
-	envSuffixPath = "_PATH"
-	envSuffixType = "_TYPE"
+	EnvConfigPath = "CONFIG_PATH"
+	EnvConfigFile = "CONFIG_FILE"
+	EnvConfigType = "CONFIG_TYPE"
 )
 
-type Loader[C Config] struct {
-	config C
-	loaded bool
-	mutex  sync.RWMutex
-	viper  *viper.Viper
+type Loader[C IConfig] struct {
+	config         C
+	loaded         bool
+	mutex          sync.RWMutex
+	viper          *viper.Viper
+	decoderOptions []viper.DecoderConfigOption
 }
 
-func NewLoader[C Config](v *viper.Viper) *Loader[C] {
-	return &Loader[C]{viper: v}
+func NewLoader[C IConfig](v *viper.Viper, decoderOptions ...viper.DecoderConfigOption) *Loader[C] {
+	return &Loader[C]{viper: v, decoderOptions: decoderOptions}
 }
 
-func NewDefaultLoader[C Config]() *Loader[C] {
+func NewDefaultLoader[C IConfig]() *Loader[C] {
 	v := viper.New()
 
-	if configFile, ok := os.LookupEnv(envPrefix + envSuffixFile); ok { //nolint:nestif // ok
+	if configFile, ok := os.LookupEnv(EnvConfigFile); ok { //nolint:nestif // ok
 		v.SetConfigFile(configFile)
 	} else {
-		if configPath, ok := os.LookupEnv(envPrefix + envSuffixPath); ok {
+		if configPath, ok := os.LookupEnv(EnvConfigPath); ok {
 			v.AddConfigPath(configPath)
 		} else {
 			v.AddConfigPath(".")
@@ -43,7 +43,7 @@ func NewDefaultLoader[C Config]() *Loader[C] {
 			v.AddConfigPath("./.mnt/config.d")
 		}
 
-		if configType, ok := os.LookupEnv(envPrefix + envSuffixType); ok {
+		if configType, ok := os.LookupEnv(EnvConfigType); ok {
 			v.SetConfigType(configType)
 		} else {
 			v.SetConfigType("yaml")
@@ -51,7 +51,6 @@ func NewDefaultLoader[C Config]() *Loader[C] {
 	}
 
 	v.AutomaticEnv()
-	v.SetEnvPrefix(envPrefix)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	return NewLoader[C](v)
@@ -100,11 +99,11 @@ func (l *Loader[C]) load() error {
 		return fmt.Errorf("read: %w", err)
 	}
 
-	unmarshalOpts := []viper.DecoderConfigOption{
+	decoderOptions := []viper.DecoderConfigOption{ //nolint:prealloc // @formatter:off // ok
 		viper.DecodeHook(mapstructure.TextUnmarshallerHookFunc()),
 	}
 
-	if err := l.viper.Unmarshal(&config, unmarshalOpts...); err != nil {
+	if err := l.viper.Unmarshal(&config, append(decoderOptions, l.decoderOptions...)...); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
 

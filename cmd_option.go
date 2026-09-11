@@ -3,7 +3,7 @@ package the
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/heffcodex/the/tcfg"
+	"github.com/heffcodex/the/tcf"
 )
 
 type CmdOption func(cmd *cobra.Command)
@@ -45,7 +45,7 @@ func Args(args ...string) CmdOption {
 	})
 }
 
-func OnAppReady[A App[C], C tcfg.Config](fns ...func(app A) error) CmdOption {
+func OnAppReady[A IApp[C], C tcf.IConfig](fns ...func(app A) error) CmdOption {
 	return CmdOptionFunc(func(cmd *cobra.Command) {
 		preRunE := cmd.PersistentPreRunE
 
