@@ -2,59 +2,49 @@ package tdep
 
 import (
 	"go.uber.org/zap"
-
-	"github.com/heffcodex/the/tcfg"
 )
 
-type OptSet struct {
+type Params struct {
 	name      string
-	env       tcfg.Env
 	singleton bool
 	log       *zap.Logger
 }
 
-func newOptSet(options ...Option) OptSet {
-	var opts OptSet
+func newParams(paramFuncs ...ParamFunc) Params {
+	var params Params
 
-	for _, opt := range options {
-		opt(&opts)
+	for _, fn := range paramFuncs {
+		fn(&params)
 	}
 
-	if opts.log == nil {
-		opts.log = zap.L()
+	if params.log == nil {
+		params.log = zap.L()
 	}
 
-	return opts
+	return params
 }
 
-func (o OptSet) Name() string      { return o.name }
-func (o OptSet) Env() tcfg.Env     { return o.env }
-func (o OptSet) IsSingleton() bool { return o.singleton }
-func (o OptSet) Log() *zap.Logger  { return o.log }
-func (o OptSet) IsDebug() bool     { return o.log.Core().Enabled(zap.DebugLevel) }
+func (o Params) Name() string      { return o.name }
+func (o Params) IsSingleton() bool { return o.singleton }
+func (o Params) Log() *zap.Logger  { return o.log }
+func (o Params) IsDebug() bool     { return o.log.Core().Enabled(zap.DebugLevel) }
 
-type Option func(*OptSet)
+type ParamFunc func(*Params)
 
-func Name(name string) Option {
-	return func(o *OptSet) {
+func WithName(name string) ParamFunc {
+	return func(o *Params) {
 		o.name = name
 	}
 }
 
-func Env(env tcfg.Env) Option {
-	return func(o *OptSet) {
-		o.env = env
-	}
-}
-
-func Singleton() Option {
-	return func(o *OptSet) {
+func AsSingleton() ParamFunc {
+	return func(o *Params) {
 		o.singleton = true
 	}
 }
 
-func Log(log *zap.Logger) Option {
-	return func(o *OptSet) {
+func WithLogger(log *zap.Logger) ParamFunc {
+	return func(o *Params) {
 		o.log = log
 	}
 }

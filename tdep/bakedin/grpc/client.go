@@ -14,16 +14,16 @@ type ClientConfig struct {
 	Port uint16 `json:"port" mapstructure:"port" yaml:"port"`
 }
 
-func NewClient[C grpc.ClientConnInterface](cfg ClientConfig, dialOptions []grpc.DialOption, options ...tdep.Option) *tdep.D[C] {
-	resolve := func(o tdep.OptSet) (C, error) {
+func NewClient[C grpc.ClientConnInterface](cfg ClientConfig, dialOptions []grpc.DialOption, options ...tdep.ParamFunc) *tdep.D[C] {
+	resolve := func(p tdep.Params) (C, error) {
 		target := cfg.Host + ":" + strconv.FormatInt(int64(cfg.Port), 10)
 
-		logDecider := grpc_zap.WithDecider(func(_ string, err error) bool { return o.IsDebug() || err != nil })
-		unaryLog := grpc_zap.UnaryClientInterceptor(o.Log(), logDecider)
-		streamLog := grpc_zap.StreamClientInterceptor(o.Log(), logDecider)
+		logDecider := grpc_zap.WithDecider(func(_ string, err error) bool { return p.IsDebug() || err != nil })
+		unaryLog := grpc_zap.UnaryClientInterceptor(p.Log(), logDecider)
+		streamLog := grpc_zap.StreamClientInterceptor(p.Log(), logDecider)
 
 		dialOptions = append(dialOptions,
-			grpc.WithUserAgent(o.Name()),
+			grpc.WithUserAgent(p.Name()),
 			grpc.WithUnaryInterceptor(unaryLog),
 			grpc.WithStreamInterceptor(streamLog),
 		)

@@ -7,11 +7,13 @@ import (
 	"sync"
 
 	"github.com/elliotchance/orderedmap/v3"
+	"github.com/google/uuid"
 )
 
-type C interface {
-	c() *Container
-}
+var (
+	ErrAlreadyRegistered = errors.New("already registered")
+	ErrNotRegistered     = errors.New("not registered")
+)
 
 type Container struct {
 	deps     sync.Map // map[string]*D[T]
@@ -19,29 +21,44 @@ type Container struct {
 	closers  *orderedmap.OrderedMap[string, CtxCloser]
 }
 
-func (c *Container) c() *Container {
-	return c
+func (c *Container) Add[T any](dep *D[T]) error {
+	if _, loaded := c.deps.LoadOrStore(dep.typ, dep); loaded {
+		return fmt.Errorf("%w: %s", ErrAlreadyRegistered, dep.typ)
+	}
+
+	return nil
 }
 
-func (c *Container) registerCloser(typ string, closer CtxCloser) {
-	c.closerMu.RLock()
+func (c *Container) MustAdd[T any](dep *D[T]) {
+	if err := c.Add(dep); err != nil {
+		panic(err)
+	}
+}
 
-	if c.closers != nil && c.closers.Has(typ) {
-		c.closerMu.RUnlock()
-		return
+func (c *Container) Get[T any]() (T, error) {
+	typ := typeOfT[T]()
+
+	if anyDep, ok := c.deps.Load(typ); ok {
+		tDep := anyDep.(*D[T]) //nolint:errcheck,revive // ok to panic here
+
+		t, err := tDep.Get()
+		if err == nil {
+			c.addCloser(typ, tDep)
+		}
+
+		return t, err
 	}
 
-	c.closerMu.RUnlock()
-	c.closerMu.Lock()
-	defer c.closerMu.Unlock()
+	return *new(T), fmt.Errorf("%w: %s", ErrNotRegistered, typ)
+}
 
-	if c.closers == nil {
-		c.closers = orderedmap.NewOrderedMap[string, CtxCloser]()
-	} else if c.closers.Has(typ) {
-		return
+func (c *Container) MustGet[T any]() T {
+	t, err := c.Get[T]()
+	if err != nil {
+		panic(err)
 	}
 
-	c.closers.Set(typ, closer)
+	return t
 }
 
 func (c *Container) Health(ctx context.Context) error {
@@ -58,6 +75,13 @@ func (c *Container) Health(ctx context.Context) error {
 	})
 
 	return errs
+}
+
+func (c *Container) OnClose(fns ...OnCloseFunc) {
+	for _, fn := range fns {
+		id := "ONCLOSE-" + uuid.NewString()
+		c.addCloser(id, fn)
+	}
 }
 
 func (c *Container) Close(ctx context.Context) (errs error) {
@@ -80,42 +104,23 @@ func (c *Container) Close(ctx context.Context) (errs error) {
 	return errs
 }
 
-func Register[T any](ctn C, dep *D[T]) error {
-	if _, loaded := ctn.c().deps.LoadOrStore(dep.typ, dep); loaded {
-		return fmt.Errorf("already registered: %s", dep.typ) //nolint:err113 // TODO: make static
+func (c *Container) addCloser(typ string, closer CtxCloser) {
+	c.closerMu.RLock()
+
+	if c.closers != nil && c.closers.Has(typ) {
+		c.closerMu.RUnlock()
+		return
 	}
 
-	return nil
-}
+	c.closerMu.RUnlock()
+	c.closerMu.Lock()
+	defer c.closerMu.Unlock()
 
-func MustRegister[T any](ctn C, dep *D[*T]) {
-	if err := Register(ctn, dep); err != nil {
-		panic(err)
-	}
-}
-
-func Get[T any](ctn C) (T, error) {
-	typ := typeOfT[T]()
-
-	if anyDep, ok := ctn.c().deps.Load(typ); ok {
-		tDep := anyDep.(*D[T]) //nolint:errcheck,revive // ok to panic here
-
-		t, err := tDep.Get()
-		if err == nil {
-			ctn.c().registerCloser(typ, tDep)
-		}
-
-		return t, err
+	if c.closers == nil {
+		c.closers = orderedmap.NewOrderedMap[string, CtxCloser]()
+	} else if c.closers.Has(typ) {
+		return
 	}
 
-	return *new(T), fmt.Errorf("not found: %s", typ) //nolint:err113 // TODO: make static
-}
-
-func Must[T any](ctn C) T {
-	t, err := Get[T](ctn)
-	if err != nil {
-		panic(err)
-	}
-
-	return t
+	c.closers.Set(typ, closer)
 }

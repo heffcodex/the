@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"sync"
-
-	"go.uber.org/zap"
 )
 
 var (
-	ErrClosed = errors.New("dep is already closed")
+	ErrClosed = errors.New("already closed")
 )
 
 type (
@@ -24,39 +22,46 @@ type (
 	}
 )
 
+type OnCloseFunc func(context.Context) error
+
+func (f OnCloseFunc) Close(ctx context.Context) error {
+	return f(ctx)
+}
+
 type (
 	HealthFunc[T any]  func(ctx context.Context, d *D[T]) error
-	ResolveFunc[T any] func(opts OptSet) (T, error)
+	ResolveFunc[T any] func(opts Params) (T, error)
 )
 
 type D[T any] struct {
-	mu      sync.RWMutex
+	mu sync.RWMutex
+
 	typ     string
-	opts    OptSet
+	params  Params
 	health  HealthFunc[T]
 	resolve ResolveFunc[T]
 
-	// updated in behaviour of Get(), Must() or Close()
+	// updated in behavior of Get(), Must() or Close()
 	instance T
 	resolved bool
 	closed   bool
 }
 
-func New[T any](resolve ResolveFunc[T], options ...Option) *D[T] {
+func New[T any](resolve ResolveFunc[T], paramFuncs ...ParamFunc) *D[T] {
+	return NewWithHealthCheck(resolve, nil, paramFuncs...)
+}
+
+func NewWithHealthCheck[T any](resolve ResolveFunc[T], health HealthFunc[T], paramFuncs ...ParamFunc) *D[T] {
 	return &D[T]{
 		typ:     typeOfT[T](),
-		opts:    newOptSet(options...),
+		params:  newParams(paramFuncs...),
+		health:  health,
 		resolve: resolve,
 	}
 }
 
-func (d *D[T]) WithHealthCheck(fn HealthFunc[T]) *D[T] {
-	d.health = fn
-	return d
-}
-
-func (d *D[T]) Options() OptSet {
-	return d.opts
+func (d *D[T]) Params() Params {
+	return d.params
 }
 
 func (d *D[T]) Get() (T, error) {
@@ -71,7 +76,7 @@ func (d *D[T]) Get() (T, error) {
 		return *new(T), ErrClosed
 	}
 
-	if d.opts.singleton && d.resolved {
+	if d.params.singleton && d.resolved {
 		defer d.mu.RUnlock()
 		return d.instance, nil
 	}
@@ -84,8 +89,8 @@ func (d *D[T]) Get() (T, error) {
 		return *new(T), ErrClosed
 	}
 
-	if !d.opts.singleton || !d.resolved {
-		instance, err := d.resolve(d.opts)
+	if !d.params.singleton || !d.resolved {
+		instance, err := d.resolve(d.params)
 		if err != nil {
 			return *new(T), err
 		}
@@ -160,7 +165,7 @@ func (d *D[T]) Close(ctx context.Context) error {
 }
 
 func (d *D[T]) debugWrite(msg string) {
-	if d.opts.IsDebug() {
-		d.opts.Log().Debug(msg, zap.String("typ", d.typ))
+	if d.params.IsDebug() {
+		d.params.Log().Named(d.typ).Debug(msg)
 	}
 }

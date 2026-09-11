@@ -61,7 +61,7 @@ func (c *Cmd[A, C]) makeRoot(shut *shutter) (*cobra.Command, error) {
 			cancelFn := cmdInject[A, C](cmd, app, shut)
 			timeout := app.C().ShutdownTimeout()
 
-			shut.setup(app.L().Named("cmd"), cancelFn, app.Close, timeout)
+			shut.setup(app.L().Named("cmd"), cancelFn, app.D().Close, timeout)
 			go func() {
 				shut.rootWaitInterrupt()
 				shut.cancel()

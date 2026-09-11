@@ -26,11 +26,11 @@ func NewPostgres[C IDB](
 	onTuneConnector func(conn *pgdriver.Connector),
 	onTuneSQLDB func(db *sql.DB),
 	onTuneBunDB func(db *bun.DB),
-	options ...tdep.Option,
+	params ...tdep.ParamFunc,
 ) *tdep.D[C] {
-	resolve := func(o tdep.OptSet) (C, error) {
+	resolve := func(p tdep.Params) (C, error) {
 		connOpts := []pgdriver.Option{
-			pgdriver.WithApplicationName(o.Name()),
+			pgdriver.WithApplicationName(p.Name()),
 			pgdriver.WithDSN(cfg.DSN),
 		}
 
@@ -53,15 +53,15 @@ func NewPostgres[C IDB](
 		}
 
 		logLevel := zap.ErrorLevel
-		if o.IsDebug() {
+		if p.IsDebug() {
 			logLevel = zap.DebugLevel
 		}
 
-		stdLog, _ := zap.NewStdLogAt(o.Log(), logLevel)
+		stdLog, _ := zap.NewStdLogAt(p.Log(), logLevel)
 
-		bunDB.AddQueryHook(
+		bunDB.WithQueryHook(
 			bundebug.NewQueryHook(
-				bundebug.WithVerbose(o.IsDebug()),
+				bundebug.WithVerbose(p.IsDebug()),
 				bundebug.WithWriter(stdLog.Writer()),
 			),
 		)
@@ -69,13 +69,13 @@ func NewPostgres[C IDB](
 		return any(bunDB).(C), nil //nolint:errcheck,revive // should never panic
 	}
 
-	return tdep.New(resolve, options...).WithHealthCheck(func(ctx context.Context, d *tdep.D[C]) error {
+	return tdep.NewWithHealthCheck(resolve, func(ctx context.Context, d *tdep.D[C]) error {
 		instance, err := d.Get()
 		if err != nil {
 			return fmt.Errorf("get: %w", err)
 		}
 
-		if !d.Options().IsSingleton() {
+		if !d.Params().IsSingleton() {
 			defer func() { _ = d.Close(ctx) }()
 		}
 
@@ -84,5 +84,5 @@ func NewPostgres[C IDB](
 		}
 
 		return nil
-	})
+	}, params...)
 }

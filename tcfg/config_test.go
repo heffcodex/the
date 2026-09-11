@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestBaseConfig_AppName(t *testing.T) {
@@ -29,21 +30,21 @@ func TestBaseConfig_AppKey(t *testing.T) {
 func TestBaseConfig_AppEnv(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, EnvDev, BaseConfig{}.AppEnv())
-	assert.Equal(t, Env("foo"), BaseConfig{App: App{Env: "foo"}}.AppEnv())
+	assert.Equal(t, "dev", BaseConfig{}.AppEnv())
+	assert.Equal(t, "foo", BaseConfig{App: App{Env: "foo"}}.AppEnv())
 }
 
 func TestBaseConfig_LogLevel(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "info", BaseConfig{}.LogLevel())
-	assert.Equal(t, "foo", BaseConfig{App: App{LogLevel: "foo"}}.LogLevel())
+	assert.Equal(t, zapcore.InfoLevel, BaseConfig{}.LogLevel())
+	assert.Equal(t, zapcore.DebugLevel, BaseConfig{App: App{LogLevel: zapcore.DebugLevel}}.LogLevel())
 }
 
 func TestBaseConfig_ShutdownTimeout(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, AppShutdownTimeoutDefault, BaseConfig{}.ShutdownTimeout())
+	assert.Equal(t, appShutdownTimeoutDefault, BaseConfig{}.ShutdownTimeout())
 	assert.Equal(t, 5*time.Second, BaseConfig{App: App{ShutdownTimeout: 5}}.ShutdownTimeout())
 }
 

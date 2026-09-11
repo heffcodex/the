@@ -10,6 +10,8 @@ import (
 	"go.uber.org/zap"
 )
 
+type ctxCloserFunc func(ctx context.Context) error
+
 type shutter struct {
 	// set by newShutter
 	signals             []os.Signal
@@ -22,7 +24,7 @@ type shutter struct {
 	wasSetup   atomic.Bool
 	log        *zap.Logger
 	cancelFn   context.CancelFunc
-	onShutdown CloseFunc
+	onShutdown ctxCloserFunc
 	timeout    time.Duration
 }
 
@@ -38,7 +40,7 @@ func newShutter(signals []os.Signal) *shutter {
 	}
 }
 
-func (s *shutter) setup(log *zap.Logger, cancelFn context.CancelFunc, onShutdown CloseFunc, timeout time.Duration) *shutter {
+func (s *shutter) setup(log *zap.Logger, cancelFn context.CancelFunc, onShutdown ctxCloserFunc, timeout time.Duration) *shutter {
 	if !s.wasSetup.CompareAndSwap(false, true) {
 		panic("shutter setup called twice")
 	}
@@ -93,7 +95,7 @@ func (s *shutter) down() {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer func() {
 		cancel()
-		_ = s.log.Sync() //nolint:wsl // it's ok
+		_ = s.log.Sync()
 	}()
 
 	onShutdownErr := make(chan error)

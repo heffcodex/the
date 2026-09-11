@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/heffcodex/the/tcfg"
+	"github.com/heffcodex/the/tzap"
+	"go.uber.org/zap/zapcore"
 )
 
 type testConfig struct {
@@ -25,8 +27,9 @@ func newTestApp() (*testApp, error) {
 	v.SetConfigFile("config.test.yaml")
 
 	configLoader := tcfg.NewLoader[testConfig](v)
+	zapCoreFunc := tzap.DefaultCore(zapcore.NewConsoleEncoder)
 
-	baseApp, err := NewBaseApp(configLoader)
+	baseApp, err := NewBaseApp(configLoader, zapCoreFunc)
 	if err != nil {
 		return nil, err
 	}
@@ -50,22 +53,21 @@ func TestCmdWaitInterrupt(t *testing.T) {
 
 			cmd := NewCmd(
 				newTestApp,
-				SilenceErrors(true),
-				SilenceUsage(true),
+				Silence(),
 				Args("run"),
 				Commands(&cobra.Command{
 					Use: "run",
 					RunE: func(cmd *cobra.Command, _ []string) error {
 						a := CmdApp[*testApp](cmd)
 
-						a.AddCloser(func(context.Context) error {
+						a.D().OnClose(func(context.Context) error {
 							seq = append(seq, 4)
-							t.Log("app close 1")
+							t.Log("close 1")
 							return nil
 						})
-						a.AddCloser(func(context.Context) error {
+						a.D().OnClose(func(context.Context) error {
 							seq = append(seq, 3)
-							t.Log("app close 2")
+							t.Log("close 2")
 							return nil
 						})
 

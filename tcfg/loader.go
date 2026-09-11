@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/spf13/viper"
+	"github.com/go-viper/mapstructure/v2"
 )
 
 const (
@@ -38,6 +39,7 @@ func NewDefaultLoader[C Config]() *Loader[C] {
 		} else {
 			v.AddConfigPath(".")
 			v.AddConfigPath("./.data")
+			v.AddConfigPath("./.config.d")
 			v.AddConfigPath("./.mnt/config.d")
 		}
 
@@ -98,8 +100,12 @@ func (l *Loader[C]) load() error {
 		return fmt.Errorf("read: %w", err)
 	}
 
-	if err := l.viper.Unmarshal(&config); err != nil {
-		return fmt.Errorf("unmarshal exact: %w", err)
+	unmarshalOpts := []viper.DecoderConfigOption{
+		viper.DecodeHook(mapstructure.TextUnmarshallerHookFunc()),
+	}
+
+	if err := l.viper.Unmarshal(&config, unmarshalOpts...); err != nil {
+		return fmt.Errorf("unmarshal: %w", err)
 	}
 
 	if err := config.AfterRead(l.viper); err != nil {

@@ -3,7 +3,6 @@ package tzap
 import (
 	"os"
 
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -18,14 +17,10 @@ const (
 	KeyHTTPRequest = "http_request"
 )
 
-type StdCoreConfig struct {
-	zapcore.EncoderConfig
+type CoreFunc func(le zapcore.LevelEnabler) zapcore.Core
 
-	LevelEnabler zapcore.LevelEnabler
-}
-
-func DefaultStdCoreConfig(le zapcore.LevelEnabler) *StdCoreConfig {
-	return &StdCoreConfig{
+func DefaultCore(newEncoderFunc func(cfg zapcore.EncoderConfig) zapcore.Encoder) CoreFunc {
+	enc := newEncoderFunc(zapcore.EncoderConfig{
 		MessageKey:          KeyMessage,
 		LevelKey:            KeyLevel,
 		TimeKey:             KeyTime,
@@ -42,25 +37,9 @@ func DefaultStdCoreConfig(le zapcore.LevelEnabler) *StdCoreConfig {
 		EncodeName:          zapcore.FullNameEncoder,
 		NewReflectedEncoder: nil, // uses json.Encoder by default
 		ConsoleSeparator:    "\t",
-		LevelEnabler:        le,
+	})
+
+	return func(le zapcore.LevelEnabler) zapcore.Core {
+		return zapcore.NewCore(enc, zapcore.Lock(os.Stderr), le)
 	}
-}
-
-func (c *StdCoreConfig) Console() zapcore.Core {
-	enc := zapcore.NewConsoleEncoder(c.EncoderConfig)
-	return c.core(enc)
-}
-
-func (c *StdCoreConfig) JSON() zapcore.Core {
-	enc := zapcore.NewJSONEncoder(c.EncoderConfig)
-	return c.core(enc)
-}
-
-func (c *StdCoreConfig) core(enc zapcore.Encoder) zapcore.Core {
-	le := c.LevelEnabler
-	if le == nil {
-		le = zap.LevelEnablerFunc(func(zapcore.Level) bool { return true })
-	}
-
-	return zapcore.NewCore(enc, zapcore.Lock(os.Stderr), le)
 }

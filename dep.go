@@ -5,19 +5,18 @@ import (
 	"github.com/heffcodex/the/tdep"
 )
 
-func DefaultDepOptions[C tcfg.Config, A App[C]](app A, loggerName ...string) []tdep.Option {
+func DefaultDep[C tcfg.Config, A App[C]](app A, loggerName ...string) []tdep.ParamFunc {
 	log := app.L().Named("dep")
 	for _, name := range loggerName {
 		log = log.Named(name)
 	}
 
-	return []tdep.Option{
-		tdep.Name(app.C().AppName()),
-		tdep.Env(app.C().AppEnv()),
-		tdep.Log(log),
+	return []tdep.ParamFunc{
+		tdep.WithName(app.C().AppName()),
+		tdep.WithLogger(log),
 	}
 }
 
-func DefaultDepSingleton[C tcfg.Config, A App[C]](app A, loggerName ...string) []tdep.Option {
-	return append(DefaultDepOptions(app, loggerName...), tdep.Singleton())
+func DefaultSingleton[C tcfg.Config, A App[C]](app A, loggerName ...string) []tdep.ParamFunc {
+	return append(DefaultDep(app, loggerName...), tdep.AsSingleton())
 }

@@ -12,7 +12,7 @@ func CmdOptionFunc(fn func(cmd *cobra.Command)) CmdOption {
 	return fn
 }
 
-func SilenceAll() CmdOption {
+func Silence() CmdOption {
 	return CmdOptionFunc(func(cmd *cobra.Command) {
 		SilenceErrors(true)(cmd)
 		SilenceUsage(true)(cmd)

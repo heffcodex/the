@@ -14,30 +14,30 @@ type (
 )
 
 func CmdApp[A App[C], C tcfg.Config](cmd *cobra.Command) A {
-	return ContextApp[A, C](cmd.Context())
+	return CtxApp[A, C](cmd.Context())
 }
 
-func ContextApp[A App[C], C tcfg.Config](ctx context.Context) A {
+func CtxApp[A App[C], C tcfg.Config](ctx context.Context) A {
 	return ctx.Value(appKey{}).(A) //nolint:errcheck,revive // it's ok to panic here
 }
 
 func CmdWaitInterrupt(cmd *cobra.Command) {
-	ContextWaitInterrupt(cmd.Context())
+	CtxWaitInterrupt(cmd.Context())
 }
 
-func ContextWaitInterrupt(ctx context.Context) {
-	contextShutter(ctx).userWaitInterrupt()
+func CtxWaitInterrupt(ctx context.Context) {
+	ctxShutter(ctx).userWaitInterrupt()
 }
 
 func CmdSoftInterrupt(cmd *cobra.Command) {
-	ContextSoftInterrupt(cmd.Context())
+	CtxSoftInterrupt(cmd.Context())
 }
 
-func ContextSoftInterrupt(ctx context.Context) {
-	contextShutter(ctx).softInterrupt()
+func CtxSoftInterrupt(ctx context.Context) {
+	ctxShutter(ctx).softInterrupt()
 }
 
-func contextShutter(ctx context.Context) *shutter {
+func ctxShutter(ctx context.Context) *shutter {
 	return ctx.Value(shutterKey{}).(*shutter) //nolint:errcheck,revive // it's ok to panic here
 }
 
