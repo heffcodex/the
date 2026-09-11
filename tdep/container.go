@@ -64,20 +64,21 @@ func (c *Container) MustGet[T any](ctx context.Context) T {
 	return t
 }
 
-func (c *Container) Health(ctx context.Context) error {
-	var errs error
+func (c *Container) Health(ctx context.Context) HealthCheckResult {
+	res := HealthCheckResult{results: make(map[string]error)}
 
 	c.deps.Range(func(name, dep any) bool {
 		if hc, ok := dep.(CtxHealthChecker); ok {
 			if err := hc.Health(ctx); err != nil {
-				errs = errors.Join(errs, fmt.Errorf("%s: %w", name.(string), err)) //nolint:errcheck // should never panic
+				res.results[name.(string)] = err
+				res.errCount++
 			}
 		}
 
 		return true
 	})
 
-	return errs
+	return res
 }
 
 func (c *Container) OnClose(fns ...OnCloseFunc) {
