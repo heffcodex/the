@@ -4,6 +4,7 @@ go 1.27.1
 
 require (
 	github.com/elliotchance/orderedmap/v3 v3.1.1
+	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/spf13/cobra v1.10.2
@@ -24,7 +25,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
-	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect

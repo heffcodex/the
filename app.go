@@ -2,11 +2,11 @@ package the
 
 import (
 	"fmt"
-	"go.uber.org/automaxprocs/maxprocs"
-	"go.uber.org/zap"
 	"github.com/heffcodex/the/tcfg"
 	"github.com/heffcodex/the/tdep"
 	"github.com/heffcodex/the/tzap"
+	"go.uber.org/automaxprocs/maxprocs"
+	"go.uber.org/zap"
 )
 
 type App[C tcfg.Config] interface {

@@ -6,6 +6,7 @@ import (
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"google.golang.org/grpc"
 
+	"context"
 	"github.com/heffcodex/the/tdep"
 )
 
@@ -15,7 +16,7 @@ type ClientConfig struct {
 }
 
 func NewClient[C grpc.ClientConnInterface](cfg ClientConfig, dialOptions []grpc.DialOption, options ...tdep.ParamFunc) *tdep.D[C] {
-	resolve := func(p tdep.Params) (C, error) {
+	resolve := func(_ context.Context, p tdep.Params) (C, error) {
 		target := cfg.Host + ":" + strconv.FormatInt(int64(cfg.Port), 10)
 
 		logDecider := grpc_zap.WithDecider(func(_ string, err error) bool { return p.IsDebug() || err != nil })

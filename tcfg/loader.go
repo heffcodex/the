@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/spf13/viper"
 	"github.com/go-viper/mapstructure/v2"
+	"github.com/spf13/viper"
 )
 
 const (

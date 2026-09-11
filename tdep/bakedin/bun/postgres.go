@@ -28,7 +28,7 @@ func NewPostgres[C IDB](
 	onTuneBunDB func(db *bun.DB),
 	params ...tdep.ParamFunc,
 ) *tdep.D[C] {
-	resolve := func(p tdep.Params) (C, error) {
+	resolve := func(_ context.Context, p tdep.Params) (C, error) {
 		connOpts := []pgdriver.Option{
 			pgdriver.WithApplicationName(p.Name()),
 			pgdriver.WithDSN(cfg.DSN),
@@ -70,7 +70,7 @@ func NewPostgres[C IDB](
 	}
 
 	return tdep.NewWithHealthCheck(resolve, func(ctx context.Context, d *tdep.D[C]) error {
-		instance, err := d.Get()
+		instance, err := d.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("get: %w", err)
 		}

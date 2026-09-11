@@ -2,12 +2,7 @@ package tdep
 
 import (
 	"context"
-	"errors"
 	"sync"
-)
-
-var (
-	ErrClosed = errors.New("already closed")
 )
 
 type (
@@ -30,7 +25,7 @@ func (f OnCloseFunc) Close(ctx context.Context) error {
 
 type (
 	HealthFunc[T any]  func(ctx context.Context, d *D[T]) error
-	ResolveFunc[T any] func(opts Params) (T, error)
+	ResolveFunc[T any] func(ctx context.Context, opts Params) (T, error)
 )
 
 type D[T any] struct {
@@ -64,7 +59,7 @@ func (d *D[T]) Params() Params {
 	return d.params
 }
 
-func (d *D[T]) Get() (T, error) {
+func (d *D[T]) Get(ctx context.Context) (T, error) {
 	if d == nil {
 		panic("nil dep")
 	}
@@ -90,7 +85,7 @@ func (d *D[T]) Get() (T, error) {
 	}
 
 	if !d.params.singleton || !d.resolved {
-		instance, err := d.resolve(d.params)
+		instance, err := d.resolve(ctx, d.params)
 		if err != nil {
 			return *new(T), err
 		}
@@ -104,8 +99,8 @@ func (d *D[T]) Get() (T, error) {
 	return d.instance, nil
 }
 
-func (d *D[T]) Must() T {
-	v, err := d.Get()
+func (d *D[T]) Must(ctx context.Context) T {
+	v, err := d.Get(ctx)
 	if err != nil {
 		panic(err)
 	}

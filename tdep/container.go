@@ -10,11 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-var (
-	ErrAlreadyRegistered = errors.New("already registered")
-	ErrNotRegistered     = errors.New("not registered")
-)
-
 type Container struct {
 	deps     sync.Map // map[string]*D[T]
 	closerMu sync.RWMutex
@@ -35,13 +30,21 @@ func (c *Container) MustAdd[T any](dep *D[T]) {
 	}
 }
 
-func (c *Container) Get[T any]() (T, error) {
-	typ := typeOfT[T]()
+func (c *Container) Get[T any](ctx context.Context) (T, error) {
+	var (
+		typ = typeOfT[T]()
+		err error
+	)
+
+	ctx, err = addToChain(ctx, typ)
+	if err != nil {
+		return *new(T), err
+	}
 
 	if anyDep, ok := c.deps.Load(typ); ok {
 		tDep := anyDep.(*D[T]) //nolint:errcheck,revive // ok to panic here
 
-		t, err := tDep.Get()
+		t, err := tDep.Get(ctx)
 		if err == nil {
 			c.addCloser(typ, tDep)
 		}
@@ -52,8 +55,8 @@ func (c *Container) Get[T any]() (T, error) {
 	return *new(T), fmt.Errorf("%w: %s", ErrNotRegistered, typ)
 }
 
-func (c *Container) MustGet[T any]() T {
-	t, err := c.Get[T]()
+func (c *Container) MustGet[T any](ctx context.Context) T {
+	t, err := c.Get[T](ctx)
 	if err != nil {
 		panic(err)
 	}
