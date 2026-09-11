@@ -20,30 +20,29 @@ const (
 
 type StdCoreConfig struct {
 	zapcore.EncoderConfig
+
 	LevelEnabler zapcore.LevelEnabler
 }
 
 func DefaultStdCoreConfig(le zapcore.LevelEnabler) *StdCoreConfig {
 	return &StdCoreConfig{
-		EncoderConfig: zapcore.EncoderConfig{
-			MessageKey:          KeyMessage,
-			LevelKey:            KeyLevel,
-			TimeKey:             KeyTime,
-			NameKey:             KeyName,
-			CallerKey:           KeyCaller,
-			FunctionKey:         KeyFunction,
-			StacktraceKey:       KeyStacktrace,
-			SkipLineEnding:      false,
-			LineEnding:          zapcore.DefaultLineEnding,
-			EncodeLevel:         zapcore.CapitalLevelEncoder,
-			EncodeTime:          zapcore.RFC3339TimeEncoder,
-			EncodeDuration:      zapcore.SecondsDurationEncoder,
-			EncodeCaller:        zapcore.ShortCallerEncoder,
-			EncodeName:          zapcore.FullNameEncoder,
-			NewReflectedEncoder: nil, // uses json.Encoder by default
-			ConsoleSeparator:    "\t",
-		},
-		LevelEnabler: le,
+		MessageKey:          KeyMessage,
+		LevelKey:            KeyLevel,
+		TimeKey:             KeyTime,
+		NameKey:             KeyName,
+		CallerKey:           KeyCaller,
+		FunctionKey:         KeyFunction,
+		StacktraceKey:       KeyStacktrace,
+		SkipLineEnding:      false,
+		LineEnding:          zapcore.DefaultLineEnding,
+		EncodeLevel:         zapcore.CapitalLevelEncoder,
+		EncodeTime:          zapcore.RFC3339TimeEncoder,
+		EncodeDuration:      zapcore.SecondsDurationEncoder,
+		EncodeCaller:        zapcore.ShortCallerEncoder,
+		EncodeName:          zapcore.FullNameEncoder,
+		NewReflectedEncoder: nil, // uses json.Encoder by default
+		ConsoleSeparator:    "\t",
+		LevelEnabler:        le,
 	}
 }
 

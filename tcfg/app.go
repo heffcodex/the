@@ -1,9 +1,9 @@
 package tcfg
 
 type App struct {
-	Name            string `mapstructure:"name" json:"name" yaml:"name"`
-	Key             Key    `mapstructure:"key" json:"key" yaml:"key"`
-	Env             Env    `mapstructure:"env" json:"env" yaml:"env"`
-	LogLevel        string `mapstructure:"logLevel" json:"logLevel" yaml:"logLevel"`
-	ShutdownTimeout int    `mapstructure:"shutdownTimeout" json:"shutdownTimeout" yaml:"shutdownTimeout"`
+	Name            string `json:"name"            mapstructure:"name"            yaml:"name"`
+	Key             Key    `json:"key"             mapstructure:"key"             yaml:"key"`
+	Env             Env    `json:"env"             mapstructure:"env"             yaml:"env"`
+	LogLevel        string `json:"logLevel"        mapstructure:"logLevel"        yaml:"logLevel"`
+	ShutdownTimeout int    `json:"shutdownTimeout" mapstructure:"shutdownTimeout" yaml:"shutdownTimeout"`
 }

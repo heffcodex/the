@@ -43,7 +43,7 @@ func TestBaseConfig_LogLevel(t *testing.T) {
 func TestBaseConfig_ShutdownTimeout(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, 30*time.Second, BaseConfig{}.ShutdownTimeout())
+	assert.Equal(t, AppShutdownTimeoutDefault, BaseConfig{}.ShutdownTimeout())
 	assert.Equal(t, 5*time.Second, BaseConfig{App: App{ShutdownTimeout: 5}}.ShutdownTimeout())
 }
 

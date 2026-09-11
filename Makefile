@@ -1,14 +1,12 @@
 OUTDIR	?= ./.out
 
-all: lint test
+all: fmt lint test
 
-lint: lint-main lint-gci
+fmt:
+	golangci-lint fmt -c .golangci.yml
 
-lint-main:
-	golangci-lint run -c .golangci.yml $(LINTARGS) $(LINTPATH)
-
-lint-gci:
-	GCIMODULE=`go list -m` envsubst < .golangci.gcitpl.yml | golangci-lint run -c /dev/stdin $(LINTARGS) $(LINTPATH)
+lint:
+	golangci-lint run -c .golangci.yml
 
 test: _OUTDIR
 	go test -coverprofile="$(OUTDIR)/cover.out" ./... && go tool cover -func="$(OUTDIR)/cover.out"
@@ -24,9 +22,8 @@ _OUTDIR:
 
 .PHONY:
 	all
+	fmt
 	lint
-	lint-main
-	lint-gci
 	test
 	cover
 	clean

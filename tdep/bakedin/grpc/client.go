@@ -10,8 +10,8 @@ import (
 )
 
 type ClientConfig struct {
-	Host string `mapstructure:"host" json:"host" yaml:"host"`
-	Port uint16 `mapstructure:"port" json:"port" yaml:"port"`
+	Host string `json:"host" mapstructure:"host" yaml:"host"`
+	Port uint16 `json:"port" mapstructure:"port" yaml:"port"`
 }
 
 func NewClient[C grpc.ClientConnInterface](cfg ClientConfig, dialOptions []grpc.DialOption, options ...tdep.Option) *tdep.D[C] {

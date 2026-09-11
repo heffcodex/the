@@ -30,7 +30,7 @@ const (
 var _ Config = (*BaseConfig)(nil)
 
 type BaseConfig struct {
-	App App `mapstructure:"app" json:"app" yaml:"app"`
+	App App `json:"app" mapstructure:"app" yaml:"app"`
 }
 
 func (c BaseConfig) AppName() string {

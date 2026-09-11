@@ -5,7 +5,7 @@ import (
 )
 
 func typeOfT[T any]() string {
-	tof := reflect.TypeOf(new(T)).Elem()
+	tof := reflect.TypeFor[T]()
 	if tof.Kind() == reflect.Pointer {
 		tof = tof.Elem()
 	}

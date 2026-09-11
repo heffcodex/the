@@ -14,7 +14,7 @@ import (
 )
 
 type testConfig struct {
-	tcfg.BaseConfig `mapstructure:",squash"` //nolint:tagliatelle // test
+	tcfg.BaseConfig `mapstructure:",squash"`
 }
 type testApp struct {
 	*BaseApp[testConfig]

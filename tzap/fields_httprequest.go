@@ -104,7 +104,7 @@ func HTTPRequest(r *http.Request) zap.Field {
 func FastHTTPRequest(r *fasthttp.Request) zap.Field {
 	headers := make(map[string][]string, r.Header.Len())
 
-	r.Header.VisitAll(func(key, value []byte) {
+	for key, value := range r.Header.All() {
 		k := string(key)
 		v := string(value)
 
@@ -113,7 +113,7 @@ func FastHTTPRequest(r *fasthttp.Request) zap.Field {
 		} else {
 			headers[k] = append(headers[k], v)
 		}
-	})
+	}
 
 	return zap.Field{
 		Key:  KeyHTTPRequest,

@@ -3,9 +3,9 @@ package tdep_bun
 import "time"
 
 type Config struct {
-	DSN            string `mapstructure:"dsn" json:"dsn" yaml:"dsn"`
-	MaxConnections int    `mapstructure:"maxConnections" json:"maxConnections" yaml:"maxConnections"`
-	MaxIdleTime    int    `mapstructure:"maxIdleTime" json:"maxIdleTime" yaml:"maxIdleTime"`
+	DSN            string `json:"dsn"            mapstructure:"dsn"            yaml:"dsn"`
+	MaxConnections int    `json:"maxConnections" mapstructure:"maxConnections" yaml:"maxConnections"`
+	MaxIdleTime    int    `json:"maxIdleTime"    mapstructure:"maxIdleTime"    yaml:"maxIdleTime"`
 }
 
 func (c *Config) MaxIdleTimeSeconds() time.Duration {

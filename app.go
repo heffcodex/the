@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"go.uber.org/automaxprocs/maxprocs"
@@ -47,7 +48,7 @@ type BaseApp[C tcfg.Config] struct {
 
 func NewBaseApp[C tcfg.Config](configLoader *tcfg.Loader[C]) (*BaseApp[C], error) {
 	log := zap.New(tzap.DefaultStdCoreConfig(zap.InfoLevel).Console())
-	defer zap.ReplaceGlobals(log)
+	defer func() { _ = zap.ReplaceGlobals(log) }()
 
 	config, err := configLoader.Get()
 	if err != nil {
@@ -110,8 +111,8 @@ func (a *BaseApp[C]) Close(ctx context.Context) error {
 
 	var errs error
 
-	for i := len(a.closers) - 1; i >= 0; i-- {
-		if err := a.closers[i](ctx); err != nil {
+	for i, v := range slices.Backward(a.closers) {
+		if err := v(ctx); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("app[%d]: %w", i, err))
 		}
 	}
