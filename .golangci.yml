@@ -78,6 +78,10 @@ linters:
       - text: "^[a-z].+?\\s" # allow private globals
         linters:
           - gochecknoglobals
+      - text: "local replacement are not allowed: github.com/heffcodex/the"
+        linters:
+           - gomoddirectives
+
     paths: []
 
 issues:

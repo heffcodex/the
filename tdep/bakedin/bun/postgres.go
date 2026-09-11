@@ -26,7 +26,7 @@ func NewPostgres[C IDB](
 	onTuneConnector func(conn *pgdriver.Connector),
 	onTuneSQLDB func(db *sql.DB),
 	onTuneBunDB func(db *bun.DB),
-	params ...tdep.ParamFunc,
+	paramFuncs ...tdep.ParamFunc,
 ) *tdep.D[C] {
 	resolve := func(_ context.Context, p tdep.Params) (C, error) {
 		connOpts := []pgdriver.Option{
@@ -84,5 +84,5 @@ func NewPostgres[C IDB](
 		}
 
 		return nil
-	}, params...)
+	}, paramFuncs...)
 }
